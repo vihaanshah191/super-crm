@@ -37,6 +37,25 @@ DATASET_PUBLISHER = "Ministry of Corporate Affairs (via data.gov.in)"
 
 _GOVT_CONFIDENCE = 0.95
 
+# Known alternate column names in different data.gov.in MCA dataset exports.
+# The actual CSV header may include suffixes like "(for efiling)" or use
+# older abbreviations -- we normalize before reading any field.
+_COLUMN_ALIASES: dict[str, str] = {
+    "AUTHORIZED_CAP": "AUTHORIZED_CAPITAL",
+    "REGISTRAR_OF_COMPANIES": "ROC",
+    "ROC_CODE": "ROC",
+}
+
+
+def _normalize_column_names(row: dict[str, str]) -> dict[str, str]:
+    """Strip '(for efiling)'-style suffixes and apply known column aliases."""
+    normalized: dict[str, str] = {}
+    for key, value in row.items():
+        clean = key.split("(")[0].strip()
+        clean = _COLUMN_ALIASES.get(clean, clean)
+        normalized[clean] = value
+    return normalized
+
 
 class GovernmentDatasetAdapter(SourceAdapter):
     source_type = "government_dataset"
@@ -58,6 +77,7 @@ class GovernmentDatasetAdapter(SourceAdapter):
         reader = csv.DictReader(io.StringIO(text))
         records: list[ParsedRecord] = []
         for row in reader:
+            row = _normalize_column_names(row)
             cin = (row.get("CIN") or "").strip()
             if not cin:
                 continue

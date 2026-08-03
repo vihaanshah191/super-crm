@@ -11,6 +11,16 @@ API surface used (verified against installed scrapling==0.4.12, not guessed):
   - scrapling.parser.Selector(content, url=...) with .css()/.xpath()
   - Response (subclasses Selector) exposes .status, .reason, .headers, .body, .url
 
+Redirect-SSRF protection: fetch_static() passes follow_redirects="safe" to
+Fetcher.get(), which maps to curl_cffi's CurlFollow.SAFE mode (CURLOPT_FOLLOWLOCATION=4).
+libcurl validates each redirect target against private/loopback/link-local ranges
+*before* establishing the TCP connection -- this is pre-redirect protection, not
+post-hoc. normalize_response() then re-validates the completed redirect history
+as belt-and-suspenders. Remaining known gap: DNS rebinding (a hostname that
+resolves to a public IP during the check but a private IP when curl connects) --
+this is the same TOCTOU limitation as our url_safety.py pre-fetch check and
+cannot be fully closed without a pinned-IP transport. Documented, not silenced.
+
 Prefer fetch_static() for everything. Only use fetch_dynamic() when a source is
 explicitly known to require JS rendering -- it launches a real browser and is
 far more expensive.
@@ -72,8 +82,8 @@ class ScraplingCollector:
                 headers=headers or {},
                 timeout=timeout or self._settings.scrapling_default_timeout_seconds,
                 retries=0,  # retries are driven by retry() below for uniform backoff + logging
-                follow_redirects=True,
-                max_redirects=5,
+                follow_redirects="safe",  # CurlFollow.SAFE: validates each redirect target
+                max_redirects=5,          # against private IPs *before* following it
             )
 
         response = self.retry(_do_fetch, max_retries=max_retries, source_name="fetch_static", target=url)
@@ -230,6 +240,10 @@ class ScraplingCollector:
                 f"limit of {self._settings.scrapling_max_response_bytes} bytes"
             )
 
+        # Belt-and-suspenders: fetch_static() already passes follow_redirects="safe"
+        # to Fetcher.get(), which validates each redirect target in libcurl *before*
+        # following it. This loop re-validates the completed history using our own
+        # assert_safe_url() as a second independent check.
         history = getattr(response, "history", None) or []
         for hop in history:
             hop_url = getattr(hop, "url", None)

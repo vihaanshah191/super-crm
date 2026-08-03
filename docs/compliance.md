@@ -74,12 +74,26 @@ the pipeline.
 - Response size is capped (`SCRAPLING_MAX_RESPONSE_BYTES`) against
   oversized-response abuse.
 
-## Known gap: redirect-chain validation
+## Redirect-chain SSRF protection
 
-`ScraplingCollector.normalize_response()` checks each hop in
-`response.history` against `assert_safe_url()` *after* the fetch completes,
-because Scrapling's `Fetcher.get()` does not expose a pre-redirect hook to
-validate each hop before it's followed. This is a real limitation, not a
-claim of complete redirect-abuse protection -- documented here rather than
-silently assumed away. `max_redirects=5` bounds the blast radius in the
-meantime.
+`ScraplingCollector.fetch_static()` passes `follow_redirects="safe"` to
+`Fetcher.get()`. This maps to curl_cffi's `CurlFollow.SAFE` mode
+(`CURLOPT_FOLLOWLOCATION=4`), which instructs libcurl to validate each
+redirect target against private/loopback/link-local ranges **before**
+establishing the TCP connection to that target -- this is a pre-redirect
+check at the C library level, not post-hoc.
+
+`normalize_response()` also re-validates the completed redirect history
+through `assert_safe_url()` as a second, independent layer.
+
+### Known remaining gap: DNS rebinding (TOCTOU)
+
+Both the libcurl `SAFE` check and `assert_safe_url()` resolve the redirect
+target's hostname to an IP at check time. An attacker who controls DNS could
+serve a public IP during the check and a private IP when the actual TCP
+connection is established (time-of-check/time-of-use). This is a structural
+limitation shared by any DNS-based redirect guard and cannot be fully closed
+without a pinned-IP transport layer or per-connection IP verification -- both
+beyond the scope of this PoC. `max_redirects=5` bounds the blast radius.
+
+This gap is documented here rather than silently assumed away.

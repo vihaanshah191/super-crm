@@ -64,6 +64,10 @@ class CompanyDetailOut(CompanyOut):
     evidence: list[EvidenceOut] = []
 
 
+class CompanySearchResultOut(CompanyOut):
+    match_is_definite: bool | None = None
+
+
 class CompanySearchResponse(BaseModel):
     total_returned: int
-    results: list[CompanyOut]
+    results: list[CompanySearchResultOut]

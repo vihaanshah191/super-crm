@@ -122,3 +122,29 @@ class TestGovernmentDatasetAdapter:
         )
         adapter = GovernmentDatasetAdapter(source_name="mca_company_master_data")
         assert adapter.parse(fetch_result) == []
+
+    def test_parse_normalizes_column_names_with_efiling_suffix(self):
+        """Real data.gov.in exports sometimes use 'COMPANY_STATUS(for efiling)'
+        instead of 'COMPANY_STATUS'. The adapter must normalize the header."""
+        content = (
+            b"CIN,COMPANY_NAME,COMPANY_STATUS(for efiling),COMPANY_CLASS,COMPANY_CATEGORY,"
+            b"AUTHORIZED_CAP,PAIDUP_CAPITAL,DATE_OF_REGISTRATION,REGISTERED_STATE,"
+            b"REGISTERED_OFFICE_ADDRESS,ROC\n"
+            b"U24100MH2015PTC123456,TEST CO PRIVATE LIMITED,Active,Private,"
+            b"Company limited by Shares,1000000,1000000,2015-01-01,Maharashtra,"
+            b"\"Pune, Maharashtra 411001\",RoC-Pune\n"
+        )
+        fetch_result = FetchResult(
+            url="https://example.test/efiling.csv",
+            status_code=200,
+            content=content,
+            content_type="text/csv",
+            fetched_at=datetime.now(timezone.utc),
+        )
+        adapter = GovernmentDatasetAdapter(source_name="mca_company_master_data")
+        records = adapter.parse(fetch_result)
+        assert len(records) == 1
+        assert records[0].external_ref == "U24100MH2015PTC123456"
+        drafts = {d.field: d.normalized_value for d in adapter.normalize(records[0])}
+        assert drafts.get("company_status") == "active"
+        assert drafts.get("authorized_capital_inr") == "1000000"

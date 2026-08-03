@@ -6,6 +6,21 @@ company_category, confidence). Nothing here scans all companies -- range
 filters use the coalesce(exact, range-bound) pattern so a single indexed
 column comparison covers both "employee_count=34" and "employee_range=25-40"
 rows in the same query.
+
+Range match semantics
+---------------------
+When a query specifies an employee or revenue range and a company only has an
+*estimated* range (e.g. 10–30 employees), the WHERE clause accepts the company
+if the ranges *overlap* -- the company *could* satisfy the filter. Whether it
+*definitely* satisfies the filter is a separate question answered by
+range_match_is_definite(), which callers can surface in the API response.
+
+  overlap  (current WHERE clause): effective_max >= query_min AND effective_min <= query_max
+  definite (additional annotation): effective_min >= query_min AND effective_max <= query_max
+
+A company with employee_count=50 queried at employee_min=20 is a definite match.
+A company with employee_range 10–30 queried at employee_min=20 is a *possible*
+match (ranges overlap) but not definite (the low end of 10 doesn't meet 20).
 """
 
 from sqlalchemy import String, cast, func, select
@@ -73,3 +88,42 @@ def build_company_query(filters: CompanySearchFilters) -> Select:
         stmt = stmt.where(evidence_exists)
 
     return stmt.order_by(Company.confidence.desc()).offset(filters.offset).limit(filters.limit)
+
+
+def range_match_is_definite(company: Company, filters: CompanySearchFilters) -> bool | None:
+    """Return whether *c* definitely satisfies *f*'s employee/revenue range filters.
+
+    Returns None when no range filter is active (definite/possible distinction N/A).
+    Returns True when every applied range filter is met by the company's lower bound
+    (i.e. the company's range is entirely within or above the query range).
+    Returns False when the company passed the WHERE clause via overlap only --
+    the low end of the company's estimated range may not satisfy the filter.
+    """
+    has_employee_filter = filters.employee_min is not None or filters.employee_max is not None
+    has_revenue_filter = filters.revenue_min_inr is not None or filters.revenue_max_inr is not None
+    if not has_employee_filter and not has_revenue_filter:
+        return None
+
+    definite = True
+
+    if has_employee_filter:
+        eff_min = company.employee_count if company.employee_count is not None else company.employee_range_min
+        eff_max = company.employee_count if company.employee_count is not None else company.employee_range_max
+        if filters.employee_min is not None and eff_min is not None:
+            if eff_min < filters.employee_min:
+                definite = False
+        if filters.employee_max is not None and eff_max is not None:
+            if eff_max > filters.employee_max:
+                definite = False
+
+    if has_revenue_filter:
+        eff_min = company.annual_revenue_inr if company.annual_revenue_inr is not None else company.revenue_range_min_inr
+        eff_max = company.annual_revenue_inr if company.annual_revenue_inr is not None else company.revenue_range_max_inr
+        if filters.revenue_min_inr is not None and eff_min is not None:
+            if eff_min < filters.revenue_min_inr:
+                definite = False
+        if filters.revenue_max_inr is not None and eff_max is not None:
+            if eff_max > filters.revenue_max_inr:
+                definite = False
+
+    return definite

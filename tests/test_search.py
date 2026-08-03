@@ -1,6 +1,6 @@
 from app.models.company import Company
 from app.search.filters import CompanySearchFilters
-from app.search.query import build_company_query
+from app.search.query import build_company_query, range_match_is_definite
 
 
 def _company(**overrides) -> Company:
@@ -102,3 +102,45 @@ class TestSearchFilters:
         filters = CompanySearchFilters(limit=2)
         results = list(db.scalars(build_company_query(filters)))
         assert len(results) == 2
+
+
+class TestRangeMatchDefiniteness:
+    """range_match_is_definite() distinguishes overlap-only matches from
+    definitively-satisfying matches so the API can surface match quality."""
+
+    def test_no_range_filter_returns_none(self):
+        company = _company()
+        filters = CompanySearchFilters(state="Maharashtra")
+        assert range_match_is_definite(company, filters) is None
+
+    def test_exact_employee_count_within_range_is_definite(self):
+        company = _company(employee_count=50, employee_range_min=None, employee_range_max=None)
+        filters = CompanySearchFilters(employee_min=20)
+        assert range_match_is_definite(company, filters) is True
+
+    def test_estimated_range_low_end_meets_min_is_definite(self):
+        # employee_range_min=50 already satisfies employee_min=20 -- definite match.
+        company = _company(employee_count=None, employee_range_min=50, employee_range_max=200)
+        filters = CompanySearchFilters(employee_min=20)
+        assert range_match_is_definite(company, filters) is True
+
+    def test_estimated_range_overlaps_but_low_end_below_min_is_possible(self):
+        # employee_range_min=10 is below employee_min=20 -- the company *could* have
+        # fewer than 20 employees; the WHERE clause matched on overlap (max=30 >= 20).
+        company = _company(employee_count=None, employee_range_min=10, employee_range_max=30)
+        filters = CompanySearchFilters(employee_min=20)
+        assert range_match_is_definite(company, filters) is False
+
+    def test_revenue_range_overlap_only_is_possible(self):
+        company = _company(
+            annual_revenue_inr=None,
+            revenue_range_min_inr=50_000_000,
+            revenue_range_max_inr=150_000_000,
+        )
+        filters = CompanySearchFilters(revenue_min_inr=100_000_000)
+        assert range_match_is_definite(company, filters) is False
+
+    def test_exact_revenue_is_definite(self):
+        company = _company(annual_revenue_inr=200_000_000)
+        filters = CompanySearchFilters(revenue_min_inr=100_000_000)
+        assert range_match_is_definite(company, filters) is True
