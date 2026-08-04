@@ -85,7 +85,7 @@ class TestGovernmentDatasetAdapter:
     def test_validate_rejects_malformed_cin(self, fetch_result):
         adapter = GovernmentDatasetAdapter(source_name="mca_company_master_data")
         record = adapter.parse(fetch_result)[0]
-        bad_record = record.__class__(external_ref="short", fields={**record.fields, "CIN": "short"})
+        bad_record = record.__class__(external_ref="short", fields={**record.fields, "cin": "short"})
         assert adapter.validate(bad_record) is False
 
     def test_normalize_produces_verified_verification_type(self, fetch_result):

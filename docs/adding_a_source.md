@@ -38,7 +38,19 @@ class SourceAdapter(ABC):
   an honest `verification_type` (see `docs/confidence_engine.md` -- a
   self-reported website fact is `OBSERVED`, not `VERIFIED`).
 - `validate()`: cheap sanity checks before anything is persisted (e.g. the
-  government adapter checks CIN length/format).
+  government adapter checks CIN length/format). A required identity field
+  (like CIN) that's absent or malformed should fail validation for that row
+  -- never fabricate or guess one to let a row through.
+
+If the external field/column names for a structured source (CSV/JSON/API)
+aren't something you fully control or trust to stay stable, don't hardcode
+exact column-name strings inline through `parse()`/`normalize()`. Follow the
+pattern in `app/source_adapters/mca_field_mapping.py`: a small, documented,
+data-only module mapping known external-name variants to canonical internal
+field keys, with a `compare_fields()`-style helper so a schema-discovery
+command (see `app/cli/inspect_mca_schema.py`) can report unknown/missing
+columns without touching adapter logic. An unrecognized external column
+should be silently ignored, never a crash.
 
 ## 3. Register the `Source` row
 

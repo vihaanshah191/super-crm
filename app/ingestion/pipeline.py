@@ -9,7 +9,7 @@ testable without Celery or a running worker.
 """
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, timezone
 
 from sqlalchemy import select
@@ -56,9 +56,21 @@ def ingest_parsed_record(
     source: Source,
     policy: SourcePolicy,
     record: ParsedRecord,
+    *,
+    extra_observation_metadata: dict | None = None,
 ) -> IngestResult:
     """Validate, normalize, and store one parsed record as RawObservations,
-    resolving it to a canonical Company (or flagging it for review)."""
+    resolving it to a canonical Company (or flagging it for review).
+
+    `extra_observation_metadata`, when given, is merged into every resulting
+    ObservationDraft's metadata before it's persisted. This is how transports
+    that aren't a live network fetch (e.g. app/cli/import_mca.py's local-file
+    import) attach their own provenance -- original filename, file SHA-256,
+    import timestamp, declared source URL/license -- onto every observation
+    they produce, without a separate ingestion code path that would risk
+    diverging from this one. The adapter itself stays unaware of which
+    transport is calling it.
+    """
     policy.assert_collection_allowed()
 
     if not adapter.validate(record):
@@ -69,6 +81,8 @@ def ingest_parsed_record(
         return IngestResult(company_id=None, decision="no_match", observation_ids=[])
 
     drafts = adapter.normalize(record)
+    if extra_observation_metadata:
+        drafts = [replace(d, metadata={**d.metadata, **extra_observation_metadata}) for d in drafts]
     if not drafts:
         return IngestResult(company_id=None, decision="no_match", observation_ids=[])
 
