@@ -35,6 +35,16 @@ reliability (Source.reliability_weight / 100)
   x freshness (exp(-age_days / 365))
 ```
 
+The "winning" value for a field is the one with the most agreeing observations
+(majority vote). **Ties are broken by the strongest single observation backing
+each candidate value** (highest reliability x verification_weight x freshness) --
+never by input/query order. A 1-1 split between a VERIFIED government
+observation and an OBSERVED website observation always resolves to the
+VERIFIED one; `recompute_company_evidence()`'s SQL query has no natural
+ordering guarantee, so without an explicit tie-break rule the "winner" would
+depend on undefined Postgres row-return order. See
+`tests/test_confidence.py::test_conflict_tie_break_is_deterministic_regardless_of_input_order`.
+
 Then, among observations that agree on the winning value:
 
 ```

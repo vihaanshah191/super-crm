@@ -69,19 +69,31 @@ def compute_field_confidence(
     now = now or datetime.now(timezone.utc)
 
     value_key = lambda v: (v or "").strip().lower()  # noqa: E731
+
+    def _obs_score(o: ObservationForConfidence) -> float:
+        reliability = max(0.0, min(o.source_reliability_weight, 100)) / 100.0
+        verification_weight = VERIFICATION_TYPE_WEIGHT.get(o.verification_type, VERIFICATION_TYPE_WEIGHT["unknown"])
+        return reliability * verification_weight * _freshness(o.collected_at, now)
+
     value_counts = Counter(value_key(o.normalized_value) for o in observations)
-    majority_value, majority_count = value_counts.most_common(1)[0]
+    # Ties on raw count are broken by the strongest single observation backing that
+    # value (highest reliability x verification x freshness), not by the accidental
+    # order observations were passed in / returned from the DB. Without this, a 1-1
+    # split between a VERIFIED and an OBSERVED value would pick a "winner" based on
+    # undefined query row order rather than which observation actually deserves it.
+    best_score_by_value: dict[str, float] = {}
+    for o in observations:
+        key = value_key(o.normalized_value)
+        score = _obs_score(o)
+        if key not in best_score_by_value or score > best_score_by_value[key]:
+            best_score_by_value[key] = score
+    majority_value = max(value_counts, key=lambda v: (value_counts[v], best_score_by_value[v]))
+    majority_count = value_counts[majority_value]
     agreement_ratio = majority_count / len(observations)
 
     agreeing = [o for o in observations if value_key(o.normalized_value) == majority_value]
 
-    per_obs_scores = []
-    for o in agreeing:
-        reliability = max(0.0, min(o.source_reliability_weight, 100)) / 100.0
-        verification_weight = VERIFICATION_TYPE_WEIGHT.get(o.verification_type, VERIFICATION_TYPE_WEIGHT["unknown"])
-        freshness = _freshness(o.collected_at, now)
-        per_obs_scores.append(reliability * verification_weight * freshness)
-
+    per_obs_scores = [_obs_score(o) for o in agreeing]
     base_score = max(per_obs_scores) if per_obs_scores else 0.0
     independent_source_bonus = min(
         _MAX_INDEPENDENT_SOURCE_BONUS, _PER_EXTRA_SOURCE_BONUS * (len(agreeing) - 1)

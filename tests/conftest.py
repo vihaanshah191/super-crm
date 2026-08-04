@@ -3,6 +3,8 @@ import pytest
 from app.db.base import SessionLocal
 from app.models.company import Company, CompanyAlias
 from app.models.evidence import Evidence, EvidenceObservation
+from app.models.financials import CompanyFinancials
+from app.models.gst_registration import CompanyGSTRegistration
 from app.models.ingestion_job import IngestionJob
 from app.models.match_candidate import EntityMatchCandidate
 from app.models.observation import RawObservation
@@ -14,6 +16,8 @@ _CLEANUP_ORDER = [
     EntityMatchCandidate,
     IngestionJob,
     Evidence,
+    CompanyFinancials,
+    CompanyGSTRegistration,
     RawObservation,
     CompanyAlias,
     Company,

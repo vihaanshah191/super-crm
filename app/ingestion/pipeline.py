@@ -244,6 +244,12 @@ def recompute_company_evidence(db: Session, company_id: uuid.UUID, fields: list[
                 select(RawObservation)
                 .where(RawObservation.company_id == company_id, RawObservation.field == field_name)
                 .join(Source, Source.id == RawObservation.source_id)
+                # Deterministic ordering: without this, row order is whatever Postgres's
+                # query planner happens to return (unspecified, can shift with table
+                # size/vacuum state). compute_field_confidence() no longer relies on
+                # input order to break value ties, but a stable order here still makes
+                # the explanation's observation lists reproducible for debugging.
+                .order_by(RawObservation.collected_at, RawObservation.id)
             )
         )
         if not obs_rows:

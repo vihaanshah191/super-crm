@@ -22,6 +22,31 @@ Each stage is independently replaceable:
 | Orchestration | `app/ingestion/pipeline.py` | Shared by both the demo script and Celery tasks |
 | Scheduling/retries | `app/ingestion/jobs/*` | Celery + Beat |
 
+## Multi-valued identifiers and time-series financials
+
+Two fields on `Company` are denormalized *snapshots*, not the sole record:
+
+- **`Company.gstin`** -- a company can hold a separate GST registration in
+  each state it operates in ("one Company -> one GSTIN" does not hold).
+  `company_gst_registrations` (`app/models/gst_registration.py`) is the
+  source of truth: one row per registration, `gstin` globally unique
+  (statutory identifier), `is_primary` flags which one `Company.gstin`
+  mirrors. Entity resolution's GSTIN exact-match signal should query this
+  table, not `companies.gstin`, once GST collection exists.
+- **`Company.annual_revenue_inr` / `revenue_range_*_inr` / `revenue_year`**
+  -- a single-value field would silently overwrite FY2024 with FY2025 on
+  re-ingestion. `company_financials` (`app/models/financials.py`) retains one
+  row per `(company_id, financial_year)`; `Company`'s revenue columns mirror
+  the most recent year's figures for cheap single-column search filtering,
+  while `company_financials` holds the full history.
+
+Both tables are wired into the schema (migration `4920c24524c9`) but **not
+yet populated by any adapter** -- no source in this codebase currently
+collects multiple GSTINs or per-year financials, so there's nothing to
+insert. Wiring `GovernmentDatasetAdapter`/future adapters to actually write
+these rows, and updating `recompute_company_evidence()` to keep the
+`Company`-level snapshot columns in sync, is follow-up work.
+
 ## Why raw observations are never applied directly
 
 `RawObservation` rows are immutable and untyped-per-source: a company's
