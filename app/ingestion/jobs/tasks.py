@@ -33,6 +33,10 @@ def _adapter_for(source: Source) -> SourceAdapter:
         from app.source_adapters.government_dataset_adapter import GovernmentDatasetAdapter
 
         return GovernmentDatasetAdapter(source_name=source.name)
+    if source.source_type == "registry_data_provider":
+        from app.source_adapters.filesure_adapter import FileSureAdapter
+
+        return FileSureAdapter(source_name=source.name)
     raise ValueError(f"No adapter registered for source_type={source.source_type!r}")
 
 

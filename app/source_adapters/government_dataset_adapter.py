@@ -40,11 +40,11 @@ documented external-name -> canonical-field mapping and why it exists.
 import csv
 import io
 import json
-from datetime import date, datetime
 
 from app.ingestion.collectors.scrapling_collector import ScraplingCollector
 from app.ingestion.normalization.address import extract_postal_code, normalize_whitespace
 from app.ingestion.normalization.company_name import normalize_company_name
+from app.ingestion.normalization.dates import parse_flexible_date
 from app.models.enums import VerificationType
 from app.source_adapters.base import FetchResult, ObservationDraft, ParsedRecord, SourceAdapter
 from app.source_adapters.mca_field_mapping import map_external_fields
@@ -146,7 +146,7 @@ class GovernmentDatasetAdapter(SourceAdapter):
             add("company_type", combined, combined.lower())
 
         if reg_date := f.get("date_of_registration"):
-            parsed_date = _parse_date(reg_date)
+            parsed_date = parse_flexible_date(reg_date)
             if parsed_date:
                 add("incorporation_date", reg_date, parsed_date.isoformat())
 
@@ -216,10 +216,3 @@ def _parse_json_rows(text: str) -> list[dict[str, object]]:
     raise ValueError("Unrecognized JSON shape for MCA dataset: expected a list or a {'records': [...]} object")
 
 
-def _parse_date(raw: str) -> date | None:
-    for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y"):
-        try:
-            return datetime.strptime(raw.strip(), fmt).date()
-        except ValueError:
-            continue
-    return None

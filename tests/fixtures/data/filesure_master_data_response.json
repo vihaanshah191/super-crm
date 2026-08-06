@@ -1,0 +1,49 @@
+{
+  "data": {
+    "cin": "L74110KA2013PLC096530",
+    "company": "SWIGGY LIMITED",
+    "masterData": {
+      "companyData": {
+        "cin": "L74110KA2013PLC096530",
+        "companyName": "SWIGGY LIMITED",
+        "pan": "AAFCB7707N",
+        "rocCode": "RoC-Bangalore",
+        "registrationNumber": "096530",
+        "companyCategory": "Company limited by shares",
+        "companySubcategory": "Indian Non-Government Company",
+        "classOfCompany": "Public",
+        "companyType": "Public Company",
+        "companyOrigin": "Indian",
+        "whetherListedOrNot": "Listed",
+        "companyStatus": "Active",
+        "activeCompliance": "ACTIVE compliant",
+        "dateOfIncorporation": "09/12/2013",
+        "dateOfBalanceSheet": "31/03/2024",
+        "dateOfLastAGM": "30/09/2024",
+        "authorisedCapital": "250000000000",
+        "paidupCapital": "22390000000",
+        "MCAMDSCompanyAddress": [
+          {
+            "addressType": "Registered Address",
+            "addressLine1": "NO. 55, I&II FLOOR, 17TH CROSS",
+            "addressLine2": "8TH MAIN ROAD, N.S. PALYA, BTM LAYOUT",
+            "city": "Bengaluru",
+            "state": "Karnataka",
+            "pinCode": "560076"
+          }
+        ]
+      },
+      "directorData": [
+        {
+          "DIN": "07799277",
+          "firstName": "SRIHARSHA",
+          "lastName": "MAJETY",
+          "designation": "Managing Director",
+          "dateOfAppointment": "14/12/2017"
+        }
+      ],
+      "indexChargesData": []
+    }
+  },
+  "meta": {}
+}

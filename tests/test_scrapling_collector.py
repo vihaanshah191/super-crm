@@ -30,6 +30,47 @@ def _make_response(status=200, url="https://example.test/page", body=b"<html></h
     )
 
 
+class TestFetchStaticCallsScraplingWithOneAttempt:
+    """Regression test: fetch_static() previously passed retries=0 to
+    Fetcher.get(), which Scrapling treats as "make zero attempts" (a
+    `for attempt in range(0)` loop that never executes), not "no retries" --
+    every real network call silently failed with "No active session
+    available." before ever reaching curl_cffi. This was never caught
+    because every other test here mocks at the collector.retry() level,
+    never exercising the actual kwargs fetch_static() builds. See
+    docs/filesure_data_access.md for how this was found."""
+
+    def test_passes_retries_equal_to_one_not_zero(self, monkeypatch):
+        captured_kwargs = {}
+
+        def fake_get(url, **kwargs):
+            captured_kwargs.update(kwargs)
+            return _make_response(status=200)
+
+        monkeypatch.setattr("scrapling.fetchers.Fetcher.get", staticmethod(fake_get))
+
+        collector = ScraplingCollector()
+        collector.fetch_static("https://example.com/page")
+
+        assert captured_kwargs["retries"] == 1
+
+    def test_impersonate_setting_is_forwarded(self, monkeypatch):
+        captured_kwargs = {}
+
+        def fake_get(url, **kwargs):
+            captured_kwargs.update(kwargs)
+            return _make_response(status=200)
+
+        monkeypatch.setattr("scrapling.fetchers.Fetcher.get", staticmethod(fake_get))
+
+        collector = ScraplingCollector()
+        monkeypatch.setattr(collector._settings, "scrapling_impersonate", "")
+        collector.fetch_static("https://example.com/page")
+
+        assert captured_kwargs["impersonate"] is None
+        assert captured_kwargs["stealthy_headers"] is False
+
+
 class TestNormalizeResponse:
     def test_converts_response_to_fetch_result(self):
         collector = ScraplingCollector()

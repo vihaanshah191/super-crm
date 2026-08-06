@@ -17,6 +17,17 @@ class Settings(BaseSettings):
     scrapling_default_timeout_seconds: int = 30
     scrapling_max_response_bytes: int = 10 * 1024 * 1024
     ingestion_default_concurrency: int = 4
+    # Browser TLS-fingerprint to impersonate via curl_cffi (anti-bot-detection
+    # behavior -- "chrome" is Scrapling's own default and should stay the
+    # default here too). Empty string disables impersonation. Exists as a
+    # config knob, not a hardcoded default change, because some
+    # TLS-intercepting outbound proxies (observed in this project's own
+    # sandboxed dev environment -- see docs/filesure_data_access.md) reset
+    # the connection when curl_cffi's impersonated ClientHello reaches them;
+    # disabling impersonation is a local/dev workaround, never appropriate
+    # to ship as the default since it weakens exactly the behavior this
+    # dependency exists for.
+    scrapling_impersonate: str = "chrome"
 
     data_gov_in_api_key: str = ""
     data_gov_in_mca_resource_url: str = ""
@@ -30,6 +41,14 @@ class Settings(BaseSettings):
     # under a different resource id, or set DATA_GOV_IN_MCA_RESOURCE_URL
     # directly to bypass this construction entirely.
     data_gov_in_mca_resource_id: str = "4dbe5667-7b6b-41d7-82af-211562424d9a"
+
+    # FileSure (MCA registry data reseller, api.filesure.in) -- see
+    # docs/filesure_data_access.md. Empty key + collection_enabled=false by
+    # default; both must be explicitly set before any request is made.
+    filesure_api_key: str = ""
+    filesure_env: str = "sandbox"  # "sandbox" or "production" -- same base URL, different key prefix
+    filesure_collection_enabled: bool = False
+    filesure_base_url: str = "https://api.filesure.in/v1"
 
     log_level: str = "INFO"
 

@@ -6,23 +6,27 @@ from app.core.config import get_settings
 
 _REDACT_KEYS = {"api_key", "apikey", "password", "secret", "token", "authorization"}
 
-# Query-string secrets embedded in a URL string (e.g.
-# "https://api.data.gov.in/resource/...?api-key=REALKEY&format=json") aren't
-# caught by the dict-key check above, since the sensitive value lives inside
-# a string under an innocuous key like "target" or "url". data.gov.in's API
-# requires the key as a query param (no header alternative confirmed), so any
-# log line that includes a fetch target/error message for that request can
-# leak it verbatim unless string values are scanned too.
-_QUERY_SECRET_PATTERN = re.compile(r"(?i)(api[-_]?key|token|secret)=[^&\s]+")
+# Secrets embedded inside a string value under an innocuous key (e.g. "url"
+# or "error") aren't caught by the dict-key check above. Two shapes are
+# covered: URL query params (data.gov.in's "?api-key=REALKEY") and
+# header-style key/value text such as a stringified headers dict or an
+# "x-api-key: REALKEY" fragment (FileSure's auth header -- see
+# app/source_adapters/filesure_client.py) -- both `key=value` and
+# `'key': 'value'` / `key: value` separators are matched, with an optional
+# "x-" prefix on the key name, since that's the real FileSure header name.
+_QUERY_SECRET_PATTERN = re.compile(
+    r"""(?i)((?:x-)?(?:api[-_]?key|token|secret))['"]?\s*[:=]\s*['"]?[^&\s'"]+"""
+)
 
 
 def scrub_secrets(value: str) -> str:
-    """Redact api-key/token/secret query-string parameters embedded in a URL
-    or error-message string. Exported so callers formatting their own
-    user-facing error text (e.g. CLI commands printing a caught exception
-    that embeds a fetch target URL) can apply the same redaction the logging
-    filter uses, rather than leaking a credential outside the log pipeline."""
-    return _QUERY_SECRET_PATTERN.sub(r"\1=***", value)
+    """Redact api-key/token/secret values embedded in a URL, header
+    fragment, or stringified headers dict inside an error-message string.
+    Exported so callers formatting their own user-facing error text (e.g.
+    CLI commands printing a caught exception that embeds a fetch target URL
+    or headers) can apply the same redaction the logging filter uses,
+    rather than leaking a credential outside the log pipeline."""
+    return _QUERY_SECRET_PATTERN.sub(lambda m: f"{m.group(1)}=***", value)
 
 
 class RedactingFilter(logging.Filter):
