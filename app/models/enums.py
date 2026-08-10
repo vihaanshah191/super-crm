@@ -13,6 +13,14 @@ class SourceType(str, enum.Enum):
     # underlying data it relays originates from one (MCA). See
     # docs/filesure_data_access.md.
     REGISTRY_DATA_PROVIDER = "registry_data_provider"
+    # A user/admin-supplied CSV or JSON file with a self-declared field
+    # mapping (see app/source_adapters/custom_file_adapter.py) -- not a
+    # network collection mechanism at all, so it's exempt from the
+    # scraping-specific compliance questions (robots, WAF, CAPTCHA) other
+    # source types raise, but every observation it produces is OBSERVED at
+    # a below-registry confidence weight since the data's authenticity is
+    # never independently verified.
+    USER_FILE = "user_file"
 
 
 class VerificationType(str, enum.Enum):

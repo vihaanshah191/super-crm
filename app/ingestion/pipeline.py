@@ -339,6 +339,12 @@ def _apply_field_to_company(company: Company, field_name: str, value: str | None
     if field_name == "city":
         company.city = value.title()
         return
+    if field_name == "country":
+        # Not title-cased like state/city -- a country value may already be
+        # a properly-cased name ("United States") or an ISO code ("US"),
+        # and title-casing a code would corrupt it (US -> Us).
+        company.country = value.strip()
+        return
     if field_name in ("authorized_capital_inr", "paidup_capital_inr", "pan", "roc"):
         return  # tracked as Evidence only; not part of the canonical column set
     if field_name == "products":

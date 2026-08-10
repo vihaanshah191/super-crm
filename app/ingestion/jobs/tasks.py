@@ -37,6 +37,11 @@ def _adapter_for(source: Source) -> SourceAdapter:
         from app.source_adapters.filesure_adapter import FileSureAdapter
 
         return FileSureAdapter(source_name=source.name)
+    if source.source_type == "user_file":
+        from app.source_adapters.custom_file_adapter import CustomFileAdapter
+
+        field_mapping = (source.metadata_json or {}).get("field_mapping") or {}
+        return CustomFileAdapter(source_name=source.name, field_mapping=field_mapping)
     raise ValueError(f"No adapter registered for source_type={source.source_type!r}")
 
 
