@@ -1,4 +1,6 @@
 import type {
+  AdvancedSearchRequest,
+  AdvancedSearchResponse,
   CompanyDetailOut,
   CompanyFinancialsOut,
   CompanyGSTRegistrationOut,
@@ -39,6 +41,13 @@ export function searchCompanies(filters: CompanySearchFilters): Promise<CompanyS
   return request<CompanySearchResponse>("/api/search/companies", {
     method: "POST",
     body: JSON.stringify(filters),
+  });
+}
+
+export function searchCompaniesAdvanced(searchRequest: AdvancedSearchRequest): Promise<AdvancedSearchResponse> {
+  return request<AdvancedSearchResponse>("/api/search/companies/advanced", {
+    method: "POST",
+    body: JSON.stringify(searchRequest),
   });
 }
 

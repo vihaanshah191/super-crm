@@ -149,3 +149,61 @@ export interface EntityMatchCandidateOut {
 export interface EntityMatchCandidateDetailOut extends EntityMatchCandidateOut {
   candidate_company: CompanyOut | null;
 }
+
+// Mirrors app/search/filter_types.py -- the generic filter engine behind
+// POST /api/search/companies/advanced. See lib/filter-fields.ts for the
+// field registry (mirrors app/search/filter_registry.py) that drives the
+// Discover page's dynamic filter builder.
+
+export type FilterDataType = "string" | "number" | "date" | "boolean" | "enum";
+
+export type FilterOperator =
+  | "="
+  | "!="
+  | ">"
+  | ">="
+  | "<"
+  | "<="
+  | "IN"
+  | "NOT_IN"
+  | "CONTAINS"
+  | "STARTS_WITH"
+  | "EXISTS"
+  | "NOT_EXISTS"
+  | "BETWEEN";
+
+export interface FilterCondition {
+  field: string;
+  operator: FilterOperator;
+  data_type: FilterDataType;
+  value?: unknown;
+}
+
+export interface FilterGroup {
+  op: "AND" | "OR" | "NOT";
+  conditions: FilterNode[];
+}
+
+export type FilterNode = FilterCondition | FilterGroup;
+
+export type MatchStrength = "definite" | "possible" | "unknown";
+
+export type UnknownHandling = "definite_only" | "definite_and_possible" | "include_unknown_separately";
+
+export interface AdvancedSearchRequest {
+  filter: FilterNode;
+  unknown_handling?: UnknownHandling;
+  limit?: number;
+  offset?: number;
+}
+
+export interface AdvancedSearchResultOut {
+  company: CompanyOut;
+  match_strength: MatchStrength;
+}
+
+export interface AdvancedSearchResponse {
+  total_returned: number;
+  results: AdvancedSearchResultOut[];
+  unknown_results: CompanyOut[];
+}
