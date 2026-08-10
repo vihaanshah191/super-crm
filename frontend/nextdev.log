@@ -1,0 +1,29 @@
+
+> frontend@0.1.0 dev
+> next dev
+
+▲ Next.js 16.3.0 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.1.35:3000
+✓ Ready in 5.2s
+✓ Running next.config.ts took 48ms
+
+ GET / 307 in 851ms (next.js: 598ms, application-code: 253ms)
+ GET /discover 200 in 105ms (next.js: 32ms, application-code: 73ms)
+ GET /review-queue 200 in 76ms (next.js: 29ms, application-code: 47ms)
+ GET /ingestion 200 in 305ms (next.js: 37ms, application-code: 268ms)
+ GET / 307 in 59ms (next.js: 6ms, application-code: 53ms)
+ GET /discover 200 in 42ms (next.js: 4ms, application-code: 38ms)
+ GET /review-queue 200 in 38ms (next.js: 4ms, application-code: 34ms)
+ GET /ingestion 200 in 466ms (next.js: 4ms, application-code: 461ms)
+ GET / 307 in 110ms (next.js: 14ms, application-code: 96ms)
+ GET /discover 200 in 41ms (next.js: 6ms, application-code: 35ms)
+ GET /ingestion 200 in 69ms (next.js: 12ms, application-code: 58ms)
+ GET /review-queue 200 in 30ms (next.js: 11ms, application-code: 19ms)
+ GET /discover 200 in 22ms (next.js: 5ms, application-code: 17ms)
+ GET /ingestion 200 in 50ms (next.js: 5ms, application-code: 45ms)
+ GET / 307 in 1163ms (next.js: 270ms, application-code: 892ms)
+ GET /discover 200 in 50ms (next.js: 8ms, application-code: 42ms)
+ GET /ingestion 200 in 226ms (next.js: 7ms, application-code: 219ms)
+ GET /review-queue 200 in 25ms (next.js: 6ms, application-code: 20ms)
+ GET /discover 200 in 19ms (next.js: 4ms, application-code: 15ms)

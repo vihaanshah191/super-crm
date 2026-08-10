@@ -1,0 +1,168 @@
+"""Guards against Super CRM's production workflow ever depending on a paid
+per-call enrichment provider (e.g. FileSure-style ₹-per-call company lookup
+APIs).
+
+Company data must come only from the evidence-backed pipeline documented in
+docs/ingestion.md: Source Adapter -> Raw Observation -> Normalization ->
+Entity Resolution -> Evidence/Confidence -> Canonical Company. Search,
+company-profile access, and background ingestion jobs must never trigger an
+outbound call to a paid provider, and the app must start without any such
+provider's API key configured.
+
+If a licensed enrichment provider is added later (Tier 4 in the source
+strategy), it must be invoked only by an explicit, separately-gated
+enrichment service -- never automatically by these code paths -- and these
+tests should be extended accordingly rather than relaxed.
+"""
+
+import socket
+from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.core.config import Settings, get_settings
+from app.ingestion.jobs.celery_app import celery_app
+from app.ingestion.jobs.tasks import run_source_collection
+from app.main import app
+from app.models.company import Company
+from app.source_adapters.base import FetchResult, ObservationDraft, ParsedRecord, SourceAdapter
+
+client = TestClient(app)
+
+APP_SRC_ROOT = Path(__file__).parent.parent / "app"
+
+
+class _BlockOutboundConnections:
+    """Monkeypatches socket.create_connection -- the choke point real HTTP
+    clients (requests/urllib3/httpx/curl_cffi) go through -- to fail loudly
+    if anything under test attempts a real network connection. Proves "no
+    outbound call occurred" for arbitrary code, not just a hardcoded
+    FileSure check. Deliberately does NOT patch socket.socket.connect
+    directly: on Windows, asyncio's ProactorEventLoop opens a loopback
+    self-pipe via raw socket calls as internal plumbing, unrelated to any
+    HTTP request, and patching at that level produces false positives."""
+
+    def __enter__(self):
+        self._original_create_connection = socket.create_connection
+
+        def _blocked_create_connection(address, *args, **kwargs):
+            raise AssertionError(f"Unexpected outbound network connection attempted to {address!r}")
+
+        socket.create_connection = _blocked_create_connection
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        socket.create_connection = self._original_create_connection
+
+
+class TestNoFileSureCodeFootprint:
+    def test_no_source_file_references_filesure(self):
+        """Static guard: nothing under app/ may reference FileSure by name.
+        Company data must flow through the Source Adapter -> Evidence
+        pipeline, never a hardcoded paid-provider integration."""
+        offenders = []
+        for path in APP_SRC_ROOT.rglob("*.py"):
+            text = path.read_text(encoding="utf-8")
+            if "filesure" in text.lower():
+                offenders.append(str(path))
+        assert offenders == [], f"FileSure reference(s) found in production code: {offenders}"
+
+    def test_settings_defines_no_filesure_fields(self):
+        assert not any("filesure" in name.lower() for name in Settings.model_fields)
+
+
+class TestAppStartsWithoutFileSureConfig:
+    def test_settings_construct_without_filesure_env_vars(self, monkeypatch):
+        for var in ("FILESURE_API_KEY", "FILESURE_ENV", "FILESURE_COLLECTION_ENABLED"):
+            monkeypatch.delenv(var, raising=False)
+        get_settings.cache_clear()
+        try:
+            settings = Settings(_env_file=None)
+            assert settings.database_url  # constructs fine with no FileSure config at all
+        finally:
+            get_settings.cache_clear()
+
+    def test_health_endpoint_works_without_filesure_env_vars(self, monkeypatch):
+        for var in ("FILESURE_API_KEY", "FILESURE_ENV", "FILESURE_COLLECTION_ENABLED"):
+            monkeypatch.delenv(var, raising=False)
+        response = client.get("/health")
+        assert response.status_code == 200
+
+
+class TestNoOutboundCallsDuringNormalOperations:
+    def test_search_makes_no_outbound_network_call(self, db):
+        db.add(
+            Company(
+                canonical_name="ABC Industries",
+                normalized_name="abc industries",
+                state="Maharashtra",
+                employee_range_min=50,
+                employee_range_max=200,
+                confidence=0.9,
+            )
+        )
+        db.commit()
+
+        with _BlockOutboundConnections():
+            response = client.post(
+                "/api/search/companies",
+                json={"state": "Maharashtra", "employee_min": 20, "limit": 5},
+            )
+        assert response.status_code == 200
+        assert response.json()["total_returned"] == 1
+
+    def test_company_profile_makes_no_outbound_network_call(self, db):
+        company = Company(canonical_name="ABC Industries", normalized_name="abc industries", confidence=0.9)
+        db.add(company)
+        db.commit()
+
+        with _BlockOutboundConnections():
+            response = client.get(f"/api/companies/{company.id}")
+        assert response.status_code == 200
+
+    def test_background_ingestion_job_makes_no_outbound_network_call(self, db, website_source, monkeypatch):
+        """Ingestion goes through the registered SourceAdapter only -- proves
+        the Celery task layer never reaches out to a paid provider on the
+        side, in addition to test_jobs.py's adapter-selection coverage."""
+
+        class _FakeAdapter(SourceAdapter):
+            source_type = "website"
+            collector_version = "fake/1.0"
+
+            def __init__(self, source_name: str):
+                self.source_name = source_name
+
+            def fetch(self, target: str) -> FetchResult:
+                from datetime import datetime, timezone
+
+                return FetchResult(
+                    url=target, status_code=200, content=b"", content_type="text/html",
+                    fetched_at=datetime.now(timezone.utc),
+                )
+
+            def parse(self, fetch_result: FetchResult) -> list[ParsedRecord]:
+                return [ParsedRecord(external_ref="rec-1", fields={"canonical_name": "Test Co"})]
+
+            def normalize(self, record: ParsedRecord) -> list[ObservationDraft]:
+                return [
+                    ObservationDraft(
+                        field="canonical_name", raw_value="Test Co", normalized_value="test co",
+                        confidence=0.5, verification_type="observed",
+                    )
+                ]
+
+        fake = _FakeAdapter(website_source.name)
+        monkeypatch.setattr("app.ingestion.jobs.tasks._adapter_for", lambda source: fake)
+
+        celery_app.conf.task_always_eager = True
+        celery_app.conf.task_eager_propagates = True
+        try:
+            with _BlockOutboundConnections():
+                result = run_source_collection.apply(
+                    args=[str(website_source.id), "https://example.test/a", "2026-01-01"]
+                ).get()
+        finally:
+            celery_app.conf.task_always_eager = False
+
+        assert result["status"] == "success"
