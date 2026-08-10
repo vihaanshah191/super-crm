@@ -77,13 +77,31 @@ class ScraplingCollector:
         from scrapling.fetchers import Fetcher
 
         def _do_fetch() -> Any:
+<<<<<<< HEAD
+=======
+            impersonate = self._settings.scrapling_impersonate or None
+>>>>>>> 3698f6932ecf2969d1d18f2fc5466ee0f4fd2b55
             return Fetcher.get(
                 url,
                 headers=headers or {},
                 timeout=timeout or self._settings.scrapling_default_timeout_seconds,
+<<<<<<< HEAD
                 retries=0,  # retries are driven by retry() below for uniform backoff + logging
                 follow_redirects="safe",  # CurlFollow.SAFE: validates each redirect target
                 max_redirects=5,          # against private IPs *before* following it
+=======
+                # Scrapling's `retries` is a total-attempts count, not an
+                # additional-retries count -- retries=0 means zero attempts
+                # (Fetcher.get() raises "No active session available."
+                # without ever calling curl_cffi). We want exactly one
+                # attempt per call here, since retry() below is what drives
+                # the actual outer retry loop with uniform backoff/logging.
+                retries=1,
+                follow_redirects="safe",  # CurlFollow.SAFE: validates each redirect target
+                max_redirects=5,          # against private IPs *before* following it
+                impersonate=impersonate,
+                stealthy_headers=bool(impersonate),
+>>>>>>> 3698f6932ecf2969d1d18f2fc5466ee0f4fd2b55
             )
 
         response = self.retry(_do_fetch, max_retries=max_retries, source_name="fetch_static", target=url)

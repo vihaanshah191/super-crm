@@ -87,3 +87,22 @@ def mca_source(db):
     db.add(source)
     db.commit()
     return source
+<<<<<<< HEAD
+=======
+
+
+@pytest.fixture()
+def filesure_source(db):
+    source = Source(
+        name="filesure",
+        source_type="registry_data_provider",
+        collection_enabled=True,
+        rate_limit_per_minute=30,
+        max_concurrency=1,
+        reliability_weight=85,
+        license_notes="FileSure API (api.filesure.in) -- test fixture Source row.",
+    )
+    db.add(source)
+    db.commit()
+    return source
+>>>>>>> 3698f6932ecf2969d1d18f2fc5466ee0f4fd2b55

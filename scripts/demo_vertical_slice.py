@@ -16,6 +16,7 @@ live website source has been approved yet; see docs/compliance.md).
 """
 
 import json
+<<<<<<< HEAD
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,14 +26,22 @@ from pathlib import Path
 # UTF-8 so the demo doesn't crash mid-run on Windows.
 sys.stdout.reconfigure(encoding="utf-8")
 
+=======
+from datetime import datetime, timezone
+from pathlib import Path
+
+>>>>>>> 3698f6932ecf2969d1d18f2fc5466ee0f4fd2b55
 from app.compliance.source_policy import SourcePolicy
 from app.db.base import SessionLocal
 from app.ingestion.pipeline import confirm_match, ingest_parsed_record
 from app.models.company import Company, CompanyAlias
 from app.models.evidence import Evidence, EvidenceObservation
+<<<<<<< HEAD
 from app.models.financials import CompanyFinancials
 from app.models.gst_registration import CompanyGSTRegistration
 from app.models.ingestion_job import IngestionJob
+=======
+>>>>>>> 3698f6932ecf2969d1d18f2fc5466ee0f4fd2b55
 from app.models.match_candidate import EntityMatchCandidate
 from app.models.observation import RawObservation
 from app.models.source import Source
@@ -62,6 +71,7 @@ def main() -> None:
     db = SessionLocal()
 
     _section("0. Reset demo data")
+<<<<<<< HEAD
     # Deletion order respects FK constraints (children before parents) --
     # mirrors tests/conftest.py's _CLEANUP_ORDER. IngestionJob/CompanyFinancials/
     # CompanyGSTRegistration must be cleared before Source/Company, or a prior
@@ -79,6 +89,9 @@ def main() -> None:
         Company,
         Source,
     ]:
+=======
+    for model in [EvidenceObservation, EntityMatchCandidate, Evidence, RawObservation, CompanyAlias, Company, Source]:
+>>>>>>> 3698f6932ecf2969d1d18f2fc5466ee0f4fd2b55
         db.query(model).delete()
     db.commit()
     print("Cleared demo tables.")

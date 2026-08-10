@@ -6,6 +6,7 @@ from app.core.config import get_settings
 
 _REDACT_KEYS = {"api_key", "apikey", "password", "secret", "token", "authorization"}
 
+<<<<<<< HEAD
 # Query-string secrets embedded in a URL string (e.g.
 # "https://api.data.gov.in/resource/...?api-key=REALKEY&format=json") aren't
 # caught by the dict-key check above, since the sensitive value lives inside
@@ -23,6 +24,29 @@ def scrub_secrets(value: str) -> str:
     that embeds a fetch target URL) can apply the same redaction the logging
     filter uses, rather than leaking a credential outside the log pipeline."""
     return _QUERY_SECRET_PATTERN.sub(r"\1=***", value)
+=======
+# Secrets embedded inside a string value under an innocuous key (e.g. "url"
+# or "error") aren't caught by the dict-key check above. Two shapes are
+# covered: URL query params (data.gov.in's "?api-key=REALKEY") and
+# header-style key/value text such as a stringified headers dict or an
+# "x-api-key: REALKEY" fragment (FileSure's auth header -- see
+# app/source_adapters/filesure_client.py) -- both `key=value` and
+# `'key': 'value'` / `key: value` separators are matched, with an optional
+# "x-" prefix on the key name, since that's the real FileSure header name.
+_QUERY_SECRET_PATTERN = re.compile(
+    r"""(?i)((?:x-)?(?:api[-_]?key|token|secret))['"]?\s*[:=]\s*['"]?[^&\s'"]+"""
+)
+
+
+def scrub_secrets(value: str) -> str:
+    """Redact api-key/token/secret values embedded in a URL, header
+    fragment, or stringified headers dict inside an error-message string.
+    Exported so callers formatting their own user-facing error text (e.g.
+    CLI commands printing a caught exception that embeds a fetch target URL
+    or headers) can apply the same redaction the logging filter uses,
+    rather than leaking a credential outside the log pipeline."""
+    return _QUERY_SECRET_PATTERN.sub(lambda m: f"{m.group(1)}=***", value)
+>>>>>>> 3698f6932ecf2969d1d18f2fc5466ee0f4fd2b55
 
 
 class RedactingFilter(logging.Filter):
@@ -44,11 +68,14 @@ class RedactingFilter(logging.Filter):
 
 def configure_logging() -> None:
     settings = get_settings()
+<<<<<<< HEAD
     # Windows consoles default to a legacy codepage (e.g. cp1252) that can't
     # encode arbitrary non-ASCII log content (company names, "₹", etc.);
     # force UTF-8 so logging never crashes on it.
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
+=======
+>>>>>>> 3698f6932ecf2969d1d18f2fc5466ee0f4fd2b55
     handler = logging.StreamHandler(sys.stdout)
     handler.addFilter(RedactingFilter())
     formatter = logging.Formatter(
