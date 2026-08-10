@@ -141,6 +141,22 @@ class SourceOut(BaseModel):
     license_notes: str | None
 
 
+class SourceHealthOut(BaseModel):
+    """Per-source health, derived read-only from IngestionJob history --
+    see app.ingestion.source_health. Not itself a new stored fact about a
+    source (no migration involved)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    source: SourceOut
+    last_successful_run: datetime | None
+    last_run_status: str | None
+    last_run_at: datetime | None
+    last_error: str | None
+    records_collected_total: int
+    total_jobs: int
+
+
 class IngestionJobOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

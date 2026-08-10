@@ -120,6 +120,16 @@ export interface SourceOut {
   license_notes: string | null;
 }
 
+export interface SourceHealthOut {
+  source: SourceOut;
+  last_successful_run: string | null;
+  last_run_status: string | null;
+  last_run_at: string | null;
+  last_error: string | null;
+  records_collected_total: number;
+  total_jobs: number;
+}
+
 export interface IngestionJobOut {
   id: string;
   source_id: string;

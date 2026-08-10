@@ -8,6 +8,7 @@ import type {
   CompanySearchResponse,
   EntityMatchCandidateDetailOut,
   IngestionJobOut,
+  SourceHealthOut,
   SourceOut,
 } from "./types";
 
@@ -65,6 +66,10 @@ export function getCompanyGstRegistrations(id: string): Promise<CompanyGSTRegist
 
 export function listSources(): Promise<SourceOut[]> {
   return request<SourceOut[]>("/api/ingestion/sources");
+}
+
+export function listSourceHealth(): Promise<SourceHealthOut[]> {
+  return request<SourceHealthOut[]>("/api/ingestion/sources/health");
 }
 
 export function listIngestionJobs(status?: string): Promise<IngestionJobOut[]> {
