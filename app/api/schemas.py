@@ -1,7 +1,9 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.search.filter_types import FilterNode, MatchStrength, UnknownHandling
 
 
 class EvidenceOut(BaseModel):
@@ -71,6 +73,35 @@ class CompanySearchResultOut(CompanyOut):
 class CompanySearchResponse(BaseModel):
     total_returned: int
     results: list[CompanySearchResultOut]
+
+
+class AdvancedSearchRequest(BaseModel):
+    """Request body for POST /api/search/companies/advanced -- the generic,
+    field/operator/value filter engine (app.search.filter_types). Kept as a
+    separate endpoint from POST /api/search/companies rather than replacing
+    it, so existing callers of the flat CompanySearchFilters shape keep
+    working unchanged."""
+
+    filter: FilterNode
+    unknown_handling: UnknownHandling = UnknownHandling.DEFINITE_AND_POSSIBLE
+    limit: int = Field(default=20, ge=1, le=200)
+    offset: int = Field(default=0, ge=0)
+
+
+class AdvancedSearchResultOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    company: CompanyOut
+    match_strength: MatchStrength
+
+
+class AdvancedSearchResponse(BaseModel):
+    total_returned: int
+    results: list[AdvancedSearchResultOut]
+    # Only populated when unknown_handling=include_unknown_separately -- see
+    # app.search.advanced_query.find_unknown_bucket for what "unknown" means
+    # here (never a definite non-match, never coerced to zero/false).
+    unknown_results: list[CompanyOut] = []
 
 
 class CompanyFinancialsOut(BaseModel):
