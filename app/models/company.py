@@ -31,7 +31,16 @@ class Company(UUIDPKMixin, TimestampMixin, Base):
     operating_locations: Mapped[list | None] = mapped_column(JSONB, default=list)
     city: Mapped[str | None] = mapped_column(String(128), index=True)
     state: Mapped[str | None] = mapped_column(String(128), index=True)
+    # Free-text, pre-existing -- kept as-is (see docs/multi_source_architecture.md
+    # Section G) so existing "India"-valued rows stay readable; new ingestion
+    # paths should prefer setting country_code below where possible.
     country: Mapped[str | None] = mapped_column(String(128), index=True, default="India")
+    # ISO 3166-1 alpha-2, added alongside `country` rather than replacing it.
+    # Nullable and never backfilled automatically -- inferring "India" ->
+    # "IN" for every existing free-text value would be a guess this project's
+    # data-collection policy prohibits; a deliberate, reviewed backfill
+    # script is a separate, later step.
+    country_code: Mapped[str | None] = mapped_column(String(2), index=True)
     postal_code: Mapped[str | None] = mapped_column(String(16), index=True)
 
     # Business

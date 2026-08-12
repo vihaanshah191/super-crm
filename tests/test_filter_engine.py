@@ -114,6 +114,33 @@ class TestStringFilters:
         assert no_site.id not in ids
 
 
+class TestCountryCodeFilter:
+    def test_filters_by_iso_country_code(self, db):
+        india = _company(country="India", country_code="IN")
+        usa = _company(canonical_name="US Co", normalized_name="us co", country="United States", country_code="US")
+        db.add_all([india, usa])
+        db.commit()
+
+        results = search_companies_advanced(db, cond("country_code", FilterOperator.EQ, "IN"))
+        ids = {r.company.id for r in results}
+        assert india.id in ids
+        assert usa.id not in ids
+
+    def test_unset_country_code_is_unknown_not_excluded_as_zero(self, db):
+        # A pre-Migration-2 company with a free-text country but no
+        # country_code yet -- filtering on country_code must never treat
+        # this as "definitely not IN", only as unknown.
+        legacy = _company(country="India", country_code=None)
+        db.add(legacy)
+        db.commit()
+
+        main_results = search_companies_advanced(db, cond("country_code", FilterOperator.EQ, "IN"))
+        assert legacy.id not in {r.company.id for r in main_results}
+
+        unknown = find_unknown_bucket(db, cond("country_code", FilterOperator.EQ, "IN"))
+        assert legacy.id in {c.id for c in unknown}
+
+
 class TestEnumFilter:
     def test_eq_is_case_sensitive_exact(self, db):
         match = _company(company_category="manufacturer")

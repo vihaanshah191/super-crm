@@ -7,6 +7,17 @@ it. Written before any schema change. See `docs/adding_a_source.md`,
 for the systems this builds on -- this doc doesn't repeat what's already
 documented there except where it's directly relevant to what's changing.
 
+**Status**: Phases 3, 4, 5, 7, and 8 (Section H, all schema-free) are
+implemented. Migrations 1 and 2 (Section G) have also since been applied
+(Alembic revision `5c66876cc0f9`) -- `sources.display_name/countries/
+access_method/compliance_status` and `companies.country_code` are real
+columns now, and every CLI-created Source row (`filesure_lookup.py`,
+`import_mca.py`'s file importer, `import_custom_source.py`, `seed_dev.py`)
+declares its `access_method`/`compliance_status` explicitly rather than
+leaving the field at its `unknown`/`under_review` default. Phase 6 (saved
+searches) and Phase 9 (per-platform adapters, none of which currently pass
+Section I's compliance bar) remain undone.
+
 ## A. Current source adapter architecture
 
 `app/source_adapters/base.py` defines the interface every collector
@@ -213,11 +224,10 @@ class SourceComplianceStatus(str, enum.Enum):
   official API doesn't require schema changes beyond Migration 1's new
   `Source` columns to describe it accurately.
 
-Everything above is implemented in this pass, following Section 17's
-"implement the non-schema portions first." **Migrations 1 and 2 are proposed
-here but not yet applied** -- Phases 1 and 2 (generic source metadata,
-country support at the schema level) wait for a explicit go-ahead given
-they touch the `sources`/`companies` tables directly.
+Everything above was implemented first, following Section 17's "implement
+the non-schema portions first." **Migrations 1 and 2 have since been
+applied** (Alembic revision `5c66876cc0f9`, upgrade/downgrade round-trip
+verified) -- see the "Status" note at the top of this document.
 
 ## I. Compliance/access status of Google, Justdial, Facebook, and LinkedIn
 
@@ -280,20 +290,23 @@ says "do not pretend unsupported sources are active."
 
 Follows Section 15 with H's non-schema-first reordering:
 
-1. **Now, this pass**: Phase 3 (generic filter representation) → Phase 4
-   (filter API, additive alongside the existing `CompanySearchFilters`
-   endpoint, which keeps working unchanged) → Phase 5 (frontend dynamic
-   filter builder) → Phase 7 first cut (custom CSV/JSON source adapter,
-   `Source.metadata_json`-backed field mapping, validation) → Phase 8 first
-   cut (`IngestionJob`-derived source health view + admin page). Tests for
-   all of the above, full existing suite re-run at the end.
-2. **Next, pending go-ahead**: apply Migration 1 (generic source metadata)
-   and Migration 2 (`country_code`) exactly as specified in G, then Phase 1/2
-   proper (populate the new `Source` columns for MCA/FileSure/website
-   adapters retroactively, wire `country_code` through ingestion).
-3. **After that**: Phase 6 (saved searches -- needs its own small schema
+1. **Done**: Phase 3 (generic filter representation) → Phase 4 (filter API,
+   additive alongside the existing `CompanySearchFilters` endpoint, which
+   keeps working unchanged) → Phase 5 (frontend dynamic filter builder) →
+   Phase 7 (custom CSV/JSON source adapter, `Source.metadata_json`-backed
+   field mapping, validation) → Phase 8 (`IngestionJob`-derived source
+   health view + admin page). Tests for all of the above; full suite
+   re-run after each phase.
+2. **Done**: Migration 1 (generic source metadata) and Migration 2
+   (`country_code`) applied exactly as specified in G (revision
+   `5c66876cc0f9`), plus Phase 1/2 follow-through -- every CLI-created
+   Source row now declares `access_method`/`compliance_status` explicitly
+   (see the "Status" note at the top of this document) and `country_code`
+   is filterable through the Phase 3 engine.
+3. **Next**: Phase 6 (saved searches -- needs its own small schema
    addition, a `saved_searches` table storing the Phase 3 filter
-   representation as JSONB; proposed at that time, not before).
+   representation as JSONB; propose that migration when picked up, not
+   before).
 4. **Only once a named partnership/license is actually in hand for a given
    platform**: Phase 9 per-platform adapters (Google Places API first, since
    it's the only one of the four with a genuine self-serve paid tier;

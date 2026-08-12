@@ -38,6 +38,7 @@ class CompanyOut(BaseModel):
     city: str | None
     state: str | None
     country: str | None
+    country_code: str | None
     postal_code: str | None
 
     industry: str | None
@@ -134,7 +135,11 @@ class SourceOut(BaseModel):
 
     id: uuid.UUID
     name: str
+    display_name: str | None
     source_type: str
+    countries: list[str]
+    access_method: str
+    compliance_status: str
     collection_enabled: bool
     rate_limit_per_minute: int
     reliability_weight: int

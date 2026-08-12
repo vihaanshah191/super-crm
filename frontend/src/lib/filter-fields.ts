@@ -33,6 +33,13 @@ const DATE_ORDER_ONLY_OPS: FilterOperator[] = [">", ">=", "<", "<=", "EXISTS", "
 
 export const FILTER_FIELDS: FilterFieldOption[] = [
   { value: "country", label: "Country", dataType: "string", operators: STRING_OPS, inputKind: "text" },
+  {
+    value: "country_code",
+    label: "Country code (ISO)",
+    dataType: "string",
+    operators: STRING_OPS,
+    inputKind: "text",
+  },
   { value: "state", label: "State", dataType: "string", operators: STRING_OPS, inputKind: "text" },
   { value: "city", label: "City", dataType: "string", operators: STRING_OPS, inputKind: "text" },
   { value: "postal_code", label: "Postal code", dataType: "string", operators: STRING_OPS, inputKind: "text" },

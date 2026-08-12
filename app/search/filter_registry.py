@@ -38,6 +38,7 @@ class FieldSpec:
 # change needed).
 FIELD_REGISTRY: dict[str, FieldSpec] = {
     "country": FieldSpec(FilterDataType.STRING, "country"),
+    "country_code": FieldSpec(FilterDataType.STRING, "country_code"),
     "state": FieldSpec(FilterDataType.STRING, "state"),
     "city": FieldSpec(FilterDataType.STRING, "city"),
     "postal_code": FieldSpec(FilterDataType.STRING, "postal_code"),

@@ -19,6 +19,16 @@ const STATUS_STYLES: Record<string, string> = {
   failed: "bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-950 dark:text-red-300",
 };
 
+// Mirrors app/models/enums.py's SourceComplianceStatus. Never defaults to
+// "active" styling for an unrecognized value -- an unknown status renders
+// as plain text, not a false-positive green badge.
+const COMPLIANCE_STYLES: Record<string, string> = {
+  active: "bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-950 dark:text-green-300",
+  under_review: "bg-slate-100 text-slate-800 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300",
+  requires_license: "bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-950 dark:text-amber-300",
+  not_available: "bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-950 dark:text-red-300",
+};
+
 export default async function IngestionStatusPage() {
   const [sourceHealth, jobs] = await Promise.all([listSourceHealth(), listIngestionJobs()]);
   const sourceById = new Map(sourceHealth.map((h) => [h.source.id, h.source]));
@@ -45,6 +55,9 @@ export default async function IngestionStatusPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Type</TableHead>
+                <TableHead>Countries</TableHead>
+                <TableHead>Access method</TableHead>
+                <TableHead>Compliance status</TableHead>
                 <TableHead>Collection enabled</TableHead>
                 <TableHead>Last successful run</TableHead>
                 <TableHead>Last error</TableHead>
@@ -56,8 +69,19 @@ export default async function IngestionStatusPage() {
             <TableBody>
               {sourceHealth.map((h) => (
                 <TableRow key={h.source.id}>
-                  <TableCell className="font-mono text-xs">{h.source.name}</TableCell>
+                  <TableCell className="font-medium">
+                    {h.source.display_name ?? <span className="font-mono text-xs">{h.source.name}</span>}
+                  </TableCell>
                   <TableCell>{h.source.source_type}</TableCell>
+                  <TableCell className="text-xs">
+                    {h.source.countries.length > 0 ? h.source.countries.join(", ") : "—"}
+                  </TableCell>
+                  <TableCell className="text-xs">{h.source.access_method.replaceAll("_", " ")}</TableCell>
+                  <TableCell>
+                    <Badge className={COMPLIANCE_STYLES[h.source.compliance_status] ?? ""} variant="secondary">
+                      {h.source.compliance_status.replaceAll("_", " ")}
+                    </Badge>
+                  </TableCell>
                   <TableCell>
                     {h.source.collection_enabled ? (
                       <Badge variant="secondary">Enabled</Badge>

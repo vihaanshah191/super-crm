@@ -31,6 +31,7 @@ export interface CompanyOut {
   city: string | null;
   state: string | null;
   country: string | null;
+  country_code: string | null;
   postal_code: string | null;
 
   industry: string | null;
@@ -113,7 +114,11 @@ export interface CompanyGSTRegistrationOut {
 export interface SourceOut {
   id: string;
   name: string;
+  display_name: string | null;
   source_type: string;
+  countries: string[];
+  access_method: string;
+  compliance_status: string;
   collection_enabled: boolean;
   rate_limit_per_minute: number;
   reliability_weight: number;

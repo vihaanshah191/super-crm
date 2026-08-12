@@ -60,7 +60,15 @@ def _get_or_create_source(db) -> Source:
         return source
     source = Source(
         name=FILESURE_SOURCE_NAME,
+        display_name="FileSure (MCA registry reseller)",
         source_type="registry_data_provider",
+        countries=["IN"],
+        access_method="official_api",
+        # ACTIVE reflects the sandbox/test-key tier specifically (live-
+        # verified, see docs/filesure_data_access.md) -- production/bulk
+        # access terms are a separate, not-yet-reviewed question (still
+        # noted in license_notes below).
+        compliance_status="active",
         collection_enabled=True,
         rate_limit_per_minute=30,
         max_concurrency=1,

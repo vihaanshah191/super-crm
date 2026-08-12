@@ -107,10 +107,17 @@ def _get_or_create_source(db, name: str, *, field_mapping: dict[str, str], decla
         return source
     source = Source(
         name=name,
+        display_name=name.replace("_", " ").title(),
         source_type="user_file",
+        # Country is deliberately left unset (empty list = not classified)
+        # -- a custom file's country scope isn't knowable generically; an
+        # admin can set Source.countries directly once this row exists.
+        access_method="user_uploaded_file",
         # Running this CLI with an explicit mapping IS the human
         # authorization step, same convention as import_mca.py's file
-        # importer and filesure_lookup.py's Source bootstrap.
+        # importer and filesure_lookup.py's Source bootstrap -- no scraping
+        # compliance question applies to a locally-supplied file.
+        compliance_status="active",
         collection_enabled=True,
         rate_limit_per_minute=10_000,  # not meaningfully rate-limited -- no network call happens
         max_concurrency=1,

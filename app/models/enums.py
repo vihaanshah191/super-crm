@@ -23,6 +23,37 @@ class SourceType(str, enum.Enum):
     USER_FILE = "user_file"
 
 
+class SourceAccessMethod(str, enum.Enum):
+    """How a source's data is actually obtained -- distinct from SourceType
+    (what kind of thing the source is). E.g. REGISTRY_DATA_PROVIDER sources
+    are typically OFFICIAL_API; WEBSITE sources are typically
+    SCRAPED_PUBLIC_PAGE; USER_FILE sources are USER_UPLOADED_FILE. See
+    docs/multi_source_architecture.md Section G."""
+
+    OFFICIAL_API = "official_api"
+    SCRAPED_PUBLIC_PAGE = "scraped_public_page"
+    GOVERNMENT_OPEN_DATA = "government_open_data"
+    USER_UPLOADED_FILE = "user_uploaded_file"
+    UNKNOWN = "unknown"
+
+
+class SourceComplianceStatus(str, enum.Enum):
+    """A source's real, human-reviewed access status -- distinct from
+    Source.collection_enabled, which only says whether collection is
+    switched on right now. A source can be REQUIRES_LICENSE or
+    NOT_AVAILABLE and collection_enabled=False for entirely different
+    reasons; this field records *why*, so the two states (not-yet-reviewed
+    vs. reviewed-and-blocked) are never conflated. See
+    docs/multi_source_architecture.md Section I for how this was assigned
+    to Google/LinkedIn/Facebook/Justdial specifically -- none of the four
+    are ACTIVE."""
+
+    ACTIVE = "active"  # a permitted mechanism is confirmed; collection_enabled may be True
+    UNDER_REVIEW = "under_review"  # default; not yet confirmed either way
+    REQUIRES_LICENSE = "requires_license"  # a permitted mechanism exists but needs a license/paid access Super CRM doesn't have yet
+    NOT_AVAILABLE = "not_available"  # no permitted automated mechanism exists at all; no adapter should be built
+
+
 class VerificationType(str, enum.Enum):
     VERIFIED = "verified"
     OBSERVED = "observed"

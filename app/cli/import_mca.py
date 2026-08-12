@@ -110,7 +110,15 @@ def _get_or_create_file_import_source(db, *, license_text: str) -> Source:
         return source
     source = Source(
         name=FILE_IMPORT_SOURCE_NAME,
+        display_name="MCA Company Master Data (file import)",
         source_type="government_dataset",
+        countries=["IN"],
+        # The mechanism here is "someone already downloaded an officially-
+        # obtained file", not a live API pull -- USER_UPLOADED_FILE
+        # describes how *this* source gets its data, distinct from
+        # source_type=government_dataset (what kind of data it is).
+        access_method="user_uploaded_file",
+        compliance_status="active",
         collection_enabled=True,
         rate_limit_per_minute=10_000,  # not meaningfully rate-limited -- no network call happens
         max_concurrency=1,

@@ -16,6 +16,20 @@ Every source is a row in `sources` (`app/models/source.py`) with:
 - `robots_notes`, `license_notes`, `retention_notes` -- an audit trail,
   filled in during the review that flips `collection_enabled` to `True`.
 - `reliability_weight` -- feeds the confidence engine (`docs/confidence_engine.md`).
+- `compliance_status` (`SourceComplianceStatus`: `active` / `under_review` /
+  `requires_license` / `not_available`) -- the human-reviewed *reason*
+  behind `collection_enabled`, added in the multi-source expansion (see
+  `docs/multi_source_architecture.md` Section G/I). Distinct on purpose:
+  `collection_enabled=False` alone doesn't say whether a source is merely
+  unreviewed or has been reviewed and found to have no permitted access
+  mechanism at all (e.g. LinkedIn/Facebook/Justdial, none of which have an
+  adapter in this codebase -- see that doc's Section I for why).
+- `access_method` (`SourceAccessMethod`: `official_api` /
+  `scraped_public_page` / `government_open_data` / `user_uploaded_file` /
+  `unknown`) -- how the source's data is actually obtained, independent of
+  `source_type` (what kind of thing it is).
+- `countries` -- ISO 3166-1 alpha-2 codes this source covers; empty means
+  not yet classified, never inferred.
 
 `app.compliance.source_policy.SourcePolicy.assert_collection_allowed()` is
 called at the top of `ingest_parsed_record()` (`app/ingestion/pipeline.py`)
