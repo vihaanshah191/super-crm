@@ -8,10 +8,12 @@ from app.models.gst_registration import CompanyGSTRegistration
 from app.models.ingestion_job import IngestionJob
 from app.models.match_candidate import EntityMatchCandidate
 from app.models.observation import RawObservation
+from app.models.saved_search import SavedSearch
 from app.models.source import Source
 
 # Deletion order respects FK constraints (children before parents).
 _CLEANUP_ORDER = [
+    SavedSearch,  # no FK to/from anything else in this list (source_scope is an unenforced UUID array)
     EvidenceObservation,
     EntityMatchCandidate,
     IngestionJob,

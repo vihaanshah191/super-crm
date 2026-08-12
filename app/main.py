@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes.companies import router as companies_router
 from app.api.routes.ingestion import router as ingestion_router
 from app.api.routes.review_queue import router as review_queue_router
+from app.api.routes.saved_searches import router as saved_searches_router
 from app.api.routes.search import router as search_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
@@ -22,6 +23,7 @@ app.include_router(companies_router)
 app.include_router(search_router)
 app.include_router(ingestion_router)
 app.include_router(review_queue_router)
+app.include_router(saved_searches_router)
 
 
 @app.get("/health")

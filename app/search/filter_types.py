@@ -206,3 +206,19 @@ class UnknownHandling(str, enum.Enum):
     DEFINITE_ONLY = "definite_only"
     DEFINITE_AND_POSSIBLE = "definite_and_possible"  # default
     INCLUDE_UNKNOWN_SEPARATELY = "include_unknown_separately"
+
+
+class SortDirection(str, enum.Enum):
+    ASC = "asc"
+    DESC = "desc"
+
+
+class SortSpec(BaseModel):
+    """One ORDER BY term. `field` is validated against FIELD_REGISTRY the
+    same way a filter condition's field is (filter_compiler.compile_order_by)
+    -- an unsortable/unknown field is rejected at the API boundary, not
+    silently ignored. Saved searches (Phase 6) store a `list[SortSpec]` so
+    "sort by state, then confidence" round-trips exactly."""
+
+    field: str
+    direction: SortDirection = SortDirection.DESC

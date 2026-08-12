@@ -35,7 +35,15 @@ from sqlalchemy.sql import ColumnElement
 from app.core.logging import get_logger
 from app.models.company import Company
 from app.search.filter_registry import FieldSpec, company_attr, get_field_spec
-from app.search.filter_types import FilterCondition, FilterDataType, FilterGroup, FilterOperator, MatchStrength
+from app.search.filter_types import (
+    FilterCondition,
+    FilterDataType,
+    FilterGroup,
+    FilterOperator,
+    MatchStrength,
+    SortDirection,
+    SortSpec,
+)
 
 logger = get_logger(__name__)
 
@@ -171,6 +179,33 @@ def _to_date(value: Any) -> date:
 
 def _escape_like(value: Any) -> str:
     return str(value).replace("%", r"\%").replace("_", r"\_")
+
+
+def compile_order_by(sort: list[SortSpec]) -> list[ColumnElement]:
+    """Translate a list of SortSpec into SQLAlchemy ORDER BY terms, one per
+    spec, in the order given (so "sort by state, then confidence" produces
+    exactly that two-key ordering). Unsortable/unknown fields raise
+    UnknownFilterFieldError via get_field_spec() -- same validation
+    boundary as a filter condition's field, not silently ignored.
+
+    Range-capable numeric fields (employees, revenue_inr) sort by the same
+    coalesce(exact, range_min) "effective value" compile_where() filters
+    on, so a company with only an estimated range sorts by its low bound,
+    not by NULL. NULLs (fields with no exact/range value at all) always
+    sort last regardless of direction -- unknown data should never appear
+    to rank above worst-known-value data just because NULL happens to sort
+    first in Postgres's default ASC ordering.
+    """
+    terms: list[ColumnElement] = []
+    for spec in sort:
+        field_spec = get_field_spec(spec.field)
+        if field_spec.range_min_attr:
+            col = func.coalesce(company_attr(field_spec.attr), company_attr(field_spec.range_min_attr))
+        else:
+            col = company_attr(field_spec.attr)
+        ordered = col.asc() if spec.direction == SortDirection.ASC else col.desc()
+        terms.append(ordered.nulls_last())
+    return terms
 
 
 # --------------------------------------------------------------------------

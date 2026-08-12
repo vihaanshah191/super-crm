@@ -67,6 +67,7 @@ def search_companies_advanced_route(
             db,
             request.filter,
             unknown_handling=request.unknown_handling,
+            sort=request.sort,
             limit=request.limit,
             offset=request.offset,
         )

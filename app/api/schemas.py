@@ -1,9 +1,9 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.search.filter_types import FilterNode, MatchStrength, UnknownHandling
+from app.search.filter_types import FilterNode, MatchStrength, SortSpec, UnknownHandling
 
 
 class EvidenceOut(BaseModel):
@@ -85,6 +85,7 @@ class AdvancedSearchRequest(BaseModel):
 
     filter: FilterNode
     unknown_handling: UnknownHandling = UnknownHandling.DEFINITE_AND_POSSIBLE
+    sort: list[SortSpec] = Field(default_factory=list)
     limit: int = Field(default=20, ge=1, le=200)
     offset: int = Field(default=0, ge=0)
 
@@ -198,3 +199,70 @@ class EntityMatchCandidateDetailOut(EntityMatchCandidateOut):
 
 class ReviewDecisionIn(BaseModel):
     reviewed_by: str
+
+
+# Fields a saved search's `selected_fields` may reference -- kept to what
+# CompanyOut actually exposes, so a garbage/typo'd column name is rejected
+# at creation time rather than silently stored (see app/models/saved_search.py).
+_SELECTABLE_COMPANY_FIELDS = frozenset(CompanyOut.model_fields)
+
+
+def _validate_selected_fields(value: list[str]) -> list[str]:
+    unknown = [f for f in value if f not in _SELECTABLE_COMPANY_FIELDS]
+    if unknown:
+        raise ValueError(f"Unknown selected_fields: {unknown}. Known fields: {sorted(_SELECTABLE_COMPANY_FIELDS)}")
+    return value
+
+
+class SavedSearchCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    created_by: str = Field(min_length=1, max_length=255)
+    country_scope: list[str] = Field(default_factory=list)
+    source_scope: list[uuid.UUID] = Field(default_factory=list)
+    filter_definition: FilterNode
+    sort: list[SortSpec] = Field(default_factory=list)
+    selected_fields: list[str] = Field(default_factory=list)
+
+    @field_validator("selected_fields")
+    @classmethod
+    def _check_selected_fields(cls, value: list[str]) -> list[str]:
+        return _validate_selected_fields(value)
+
+
+class SavedSearchUpdate(BaseModel):
+    """All fields optional -- PATCH semantics: only provided fields change."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    country_scope: list[str] | None = None
+    source_scope: list[uuid.UUID] | None = None
+    filter_definition: FilterNode | None = None
+    sort: list[SortSpec] | None = None
+    selected_fields: list[str] | None = None
+
+    @field_validator("selected_fields")
+    @classmethod
+    def _check_selected_fields(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return value
+        return _validate_selected_fields(value)
+
+
+class SavedSearchOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    created_by: str
+    country_scope: list[str]
+    source_scope: list[uuid.UUID]
+    filter_definition: dict
+    sort: list[dict]
+    selected_fields: list[str]
+    created_at: datetime
+    updated_at: datetime
+
+
+class SavedSearchExecuteRequest(BaseModel):
+    unknown_handling: UnknownHandling = UnknownHandling.DEFINITE_AND_POSSIBLE
+    limit: int = Field(default=20, ge=1, le=200)
+    offset: int = Field(default=0, ge=0)

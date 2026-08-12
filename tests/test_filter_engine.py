@@ -3,7 +3,16 @@ from pydantic import ValidationError
 
 from app.models.company import Company
 from app.search.advanced_query import find_unknown_bucket, search_companies_advanced
-from app.search.filter_types import FilterCondition, FilterDataType, FilterGroup, FilterOperator, MatchStrength, UnknownHandling
+from app.search.filter_types import (
+    FilterCondition,
+    FilterDataType,
+    FilterGroup,
+    FilterOperator,
+    MatchStrength,
+    SortDirection,
+    SortSpec,
+    UnknownHandling,
+)
 
 
 def _company(**overrides) -> Company:
@@ -332,6 +341,68 @@ class TestBooleanComposition:
         assert mh_mfg.id in ids
         assert high_rev_elsewhere.id in ids
         assert neither.id not in ids
+
+
+class TestSort:
+    def test_sort_ascending(self, db):
+        low = _company(canonical_name="Low", normalized_name="low", employee_count=10, employee_range_min=None, employee_range_max=None)
+        high = _company(canonical_name="High", normalized_name="high", employee_count=100, employee_range_min=None, employee_range_max=None)
+        db.add_all([low, high])
+        db.commit()
+
+        results = search_companies_advanced(
+            db,
+            cond("employees", FilterOperator.GTE, 0, FilterDataType.NUMBER),
+            sort=[SortSpec(field="employees", direction=SortDirection.ASC)],
+        )
+        names = [r.company.canonical_name for r in results]
+        assert names.index("Low") < names.index("High")
+
+    def test_sort_descending_is_default_direction(self, db):
+        low = _company(canonical_name="Low2", normalized_name="low2", employee_count=10, employee_range_min=None, employee_range_max=None)
+        high = _company(canonical_name="High2", normalized_name="high2", employee_count=100, employee_range_min=None, employee_range_max=None)
+        db.add_all([low, high])
+        db.commit()
+
+        results = search_companies_advanced(
+            db,
+            cond("employees", FilterOperator.GTE, 0, FilterDataType.NUMBER),
+            sort=[SortSpec(field="employees")],
+        )
+        names = [r.company.canonical_name for r in results]
+        assert names.index("High2") < names.index("Low2")
+
+    def test_unknown_values_sort_last_regardless_of_direction(self, db):
+        known = _company(
+            canonical_name="Known", normalized_name="known",
+            annual_revenue_inr=100, revenue_range_min_inr=None, revenue_range_max_inr=None,
+        )
+        unknown = _company(
+            canonical_name="Unk", normalized_name="unk",
+            annual_revenue_inr=None, revenue_range_min_inr=None, revenue_range_max_inr=None,
+        )
+        db.add_all([known, unknown])
+        db.commit()
+
+        # Both companies have the same default state ("Maharashtra") from
+        # _company(), so this condition matches both without depending on
+        # revenue -- isolating the sort behavior under test. ASC would
+        # normally put NULLs first in Postgres; must not here.
+        results = search_companies_advanced(
+            db,
+            cond("state", FilterOperator.EXISTS, data_type=FilterDataType.STRING),
+            sort=[SortSpec(field="revenue_inr", direction=SortDirection.ASC)],
+        )
+        names = [r.company.canonical_name for r in results]
+        assert names.index("Known") < names.index("Unk")
+
+    def test_unknown_sort_field_raises(self, db):
+        from app.search.filter_registry import UnknownFilterFieldError
+
+        with pytest.raises(UnknownFilterFieldError):
+            search_companies_advanced(
+                db, cond("state", FilterOperator.EQ, "Maharashtra"), sort=[SortSpec(field="not_a_real_field")]
+            )
 
 
 class TestUnknownHandling:

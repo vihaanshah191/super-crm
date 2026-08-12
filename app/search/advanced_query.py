@@ -8,15 +8,17 @@ compilation and match-strength logic can be unit tested without a database.
 
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.company import Company
-from app.search.filter_compiler import compile_where, evaluate_match_strength
+from app.models.observation import RawObservation
+from app.search.filter_compiler import compile_order_by, compile_where, evaluate_match_strength
 from app.search.filter_registry import company_attr, get_field_spec
-from app.search.filter_types import FilterCondition, FilterGroup, MatchStrength, UnknownHandling
+from app.search.filter_types import FilterCondition, FilterGroup, MatchStrength, SortSpec, UnknownHandling
 
 
 @dataclass(frozen=True)
@@ -25,11 +27,31 @@ class AdvancedSearchResult:
     match_strength: MatchStrength
 
 
+def _scope_clauses(country_scope: list[str] | None, source_scope: list[uuid.UUID] | None) -> list:
+    """Additional narrowing clauses for a saved search's country_scope/
+    source_scope (Phase 6) -- crisp include/exclude, not evidence-backed
+    filters, so they never participate in DEFINITE/POSSIBLE/UNKNOWN
+    match-strength evaluation the way a FilterCondition does."""
+    clauses = []
+    if country_scope:
+        clauses.append(Company.country_code.in_(country_scope))
+    if source_scope:
+        clauses.append(
+            select(RawObservation.id)
+            .where(RawObservation.company_id == Company.id, RawObservation.source_id.in_(source_scope))
+            .exists()
+        )
+    return clauses
+
+
 def search_companies_advanced(
     db: Session,
     filter_node: FilterCondition | FilterGroup,
     *,
     unknown_handling: UnknownHandling = UnknownHandling.DEFINITE_AND_POSSIBLE,
+    country_scope: list[str] | None = None,
+    source_scope: list[uuid.UUID] | None = None,
+    sort: list[SortSpec] | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> list[AdvancedSearchResult]:
@@ -40,9 +62,20 @@ def search_companies_advanced(
     the compiled WHERE clause already *is* "definite or possible." Only
     DEFINITE_ONLY needs a post-filter pass, since "possible" rows still
     pass the SQL WHERE by design (they might match; see filter_compiler's
-    module docstring)."""
+    module docstring).
+
+    `country_scope`/`source_scope` are saved-search scoping, not filter
+    conditions -- see _scope_clauses(). `sort` defaults to confidence
+    descending (the pre-Phase-6 behavior) when not given."""
     where_clause = compile_where(filter_node)
-    stmt = select(Company).where(where_clause).order_by(Company.confidence.desc()).offset(offset).limit(limit)
+    order_by = compile_order_by(sort) if sort else [Company.confidence.desc()]
+    stmt = (
+        select(Company)
+        .where(where_clause, *_scope_clauses(country_scope, source_scope))
+        .order_by(*order_by)
+        .offset(offset)
+        .limit(limit)
+    )
     companies = list(db.scalars(stmt))
 
     results = [
@@ -59,6 +92,8 @@ def find_unknown_bucket(
     db: Session,
     filter_node: FilterCondition | FilterGroup,
     *,
+    country_scope: list[str] | None = None,
+    source_scope: list[uuid.UUID] | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> list[Company]:
@@ -90,7 +125,7 @@ def find_unknown_bucket(
 
     stmt = (
         select(Company)
-        .where(and_(*per_condition_clauses), or_(*null_clauses))
+        .where(and_(*per_condition_clauses), or_(*null_clauses), *_scope_clauses(country_scope, source_scope))
         .order_by(Company.confidence.desc())
         .offset(offset)
         .limit(limit)
