@@ -8,6 +8,7 @@ import {
   deleteSavedSearch,
   executeSavedSearch,
   listSavedSearches,
+  listSources,
   searchCompaniesAdvanced,
 } from "@/lib/api";
 import type {
@@ -17,12 +18,15 @@ import type {
   FilterNode,
   MatchStrength,
   SavedSearchOut,
+  SourceOut,
   UnknownHandling,
 } from "@/lib/types";
 import { fieldOption, LIST_VALUE_OPERATORS, NO_VALUE_OPERATORS } from "@/lib/filter-fields";
 import { FilterRowEditor, newFilterRow, type FilterRowState } from "@/components/filter-row-editor";
 import { formatDate, formatEmployeeRange, formatInr } from "@/lib/format";
 import { ConfidenceBadge } from "@/components/confidence-badge";
+import { SourceBadges } from "@/components/source-badges";
+import { isDemoSourceName } from "@/lib/demo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -129,6 +133,11 @@ export default function DiscoverPage() {
   const [activeSavedSearchId, setActiveSavedSearchId] = useState<string | null>(null);
   const savedSearchesMounted = useRef(true);
 
+  const [sources, setSources] = useState<SourceOut[]>([]);
+  const [selectedCountry, setSelectedCountry] = useState<string>("");
+  const [selectedSourceIds, setSelectedSourceIds] = useState<Set<string>>(new Set());
+  const sourcesMounted = useRef(true);
+
   // Fetches on mount and whenever savedSearchesReloadToken changes (bumped
   // after save/delete) -- the effect owns the fetch lifecycle directly
   // rather than calling an externally-defined async function, per
@@ -151,6 +160,38 @@ export default function DiscoverPage() {
       savedSearchesMounted.current = false;
     };
   }, [savedSearchesReloadToken]);
+
+  // Sources drive both the top-level "Sources" checklist and the Country
+  // dropdown's options (every distinct country any source declares
+  // coverage for) -- fetched once on mount. All sources start selected
+  // (unscoped == every source), matching "no source_scope" search semantics.
+  useEffect(() => {
+    sourcesMounted.current = true;
+    listSources()
+      .then((data) => {
+        if (sourcesMounted.current) {
+          setSources(data);
+          setSelectedSourceIds(new Set(data.map((s) => s.id)));
+        }
+      })
+      .catch(() => {
+        /* Source list is a convenience filter, not required for search to work -- fail silent. */
+      });
+    return () => {
+      sourcesMounted.current = false;
+    };
+  }, []);
+
+  const availableCountries = Array.from(new Set(sources.flatMap((s) => s.countries))).sort();
+
+  function toggleSource(id: string) {
+    setSelectedSourceIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   function updateRow(id: string, next: FilterRowState) {
     setRows((prev) => prev.map((r) => (r.id === id ? next : r)));
@@ -177,7 +218,16 @@ export default function DiscoverPage() {
     setError(null);
     try {
       const filter = buildFilterNode(filledRows, combineMode);
-      const response = await searchCompaniesAdvanced({ filter, unknown_handling: unknownHandling, limit: 50 });
+      const response = await searchCompaniesAdvanced({
+        filter,
+        unknown_handling: unknownHandling,
+        country_scope: selectedCountry ? [selectedCountry] : undefined,
+        source_scope:
+          selectedSourceIds.size > 0 && selectedSourceIds.size < sources.length
+            ? Array.from(selectedSourceIds)
+            : undefined,
+        limit: 50,
+      });
       setResults(response.results);
       setUnknownResults(response.unknown_results);
       setTotalReturned(response.total_returned);
@@ -241,7 +291,7 @@ export default function DiscoverPage() {
     }
   }
 
-  function renderCompanyRow(company: CompanyOut, matchStrength: MatchStrength | null) {
+  function renderCompanyRow(company: CompanyOut, matchStrength: MatchStrength | null, sources: string[]) {
     const badge = matchStrength ? MATCH_STRENGTH_BADGE[matchStrength] : null;
     return (
       <TableRow key={company.id}>
@@ -254,7 +304,9 @@ export default function DiscoverPage() {
         <TableCell>{company.industry ?? "Unknown"}</TableCell>
         <TableCell>{formatEmployeeRange(company.employee_count, company.employee_range_min, company.employee_range_max)}</TableCell>
         <TableCell>{formatInr(company.annual_revenue_inr)}</TableCell>
-        <TableCell>{company.source_count}</TableCell>
+        <TableCell>
+          <SourceBadges sources={sources} />
+        </TableCell>
         <TableCell>
           {badge ? (
             <Badge variant={badge.variant === "muted" ? "outline" : badge.variant} className={badge.variant === "muted" ? "text-muted-foreground" : undefined}>
@@ -280,6 +332,64 @@ export default function DiscoverPage() {
           company fields, no free-text matching. Unknown (missing) data is never treated as a non-match.
         </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Country &amp; sources</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-8">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="countrySelect">Country</Label>
+              <select
+                id="countrySelect"
+                className="h-9 w-48 rounded-md border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                value={selectedCountry}
+                onChange={(e) => setSelectedCountry(e.target.value)}
+              >
+                <option value="">All countries</option>
+                {availableCountries.map((code) => (
+                  <option key={code} value={code}>
+                    {code}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label>Sources</Label>
+              {sources.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No sources registered yet.</p>
+              ) : (
+                <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                  {sources.map((s) => {
+                    const isDemo = isDemoSourceName(s.display_name);
+                    return (
+                      <label key={s.id} className="flex items-center gap-1.5 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={selectedSourceIds.has(s.id)}
+                          onChange={() => toggleSource(s.id)}
+                          className="size-4 rounded border-input"
+                        />
+                        <span>{s.display_name ?? s.name}</span>
+                        {isDemo && (
+                          <Badge
+                            variant="outline"
+                            className="border-amber-400 text-amber-800 dark:border-amber-700 dark:text-amber-300"
+                          >
+                            DEMO
+                          </Badge>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -460,7 +570,7 @@ export default function DiscoverPage() {
                     <TableHead>Confidence</TableHead>
                   </TableRow>
                 </TableHeader>
-                <TableBody>{results.map((r) => renderCompanyRow(r.company, r.match_strength))}</TableBody>
+                <TableBody>{results.map((r) => renderCompanyRow(r.company, r.match_strength, r.sources))}</TableBody>
               </Table>
             )}
           </CardContent>
@@ -492,7 +602,7 @@ export default function DiscoverPage() {
                   <TableHead>Confidence</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>{unknownResults.map((c) => renderCompanyRow(c, "unknown"))}</TableBody>
+              <TableBody>{unknownResults.map((c) => renderCompanyRow(c, "unknown", []))}</TableBody>
             </Table>
           </CardContent>
         </Card>

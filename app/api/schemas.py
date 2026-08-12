@@ -20,6 +20,10 @@ class EvidenceOut(BaseModel):
     verification_type: str
     explanation: dict
     computed_at: datetime
+    # Distinct Source.name values backing this evidence rollup -- populated
+    # by the route via app.ingestion.source_names (not an Evidence column;
+    # never present on a bare model_validate(evidence_row)).
+    sources: list[str] = []
 
 
 class CompanyOut(BaseModel):
@@ -44,6 +48,7 @@ class CompanyOut(BaseModel):
     industry: str | None
     sub_industry: str | None
     products: list | None
+    services: list | None
     company_category: str | None
     export_status: bool | None
 
@@ -69,6 +74,10 @@ class CompanyDetailOut(CompanyOut):
 
 class CompanySearchResultOut(CompanyOut):
     match_is_definite: bool | None = None
+    # Distinct Source.name values that contributed at least one observation
+    # to this company -- see app.ingestion.source_names. Not a Company
+    # column; populated by the route.
+    sources: list[str] = []
 
 
 class CompanySearchResponse(BaseModel):
@@ -85,6 +94,12 @@ class AdvancedSearchRequest(BaseModel):
 
     filter: FilterNode
     unknown_handling: UnknownHandling = UnknownHandling.DEFINITE_AND_POSSIBLE
+    # Crisp, non-evidence-backed narrowing -- same semantics and same
+    # _scope_clauses() implementation saved searches already use (see
+    # app.search.advanced_query). Optional/empty means unscoped, never
+    # inferred from the filter tree itself.
+    country_scope: list[str] = Field(default_factory=list)
+    source_scope: list[uuid.UUID] = Field(default_factory=list)
     sort: list[SortSpec] = Field(default_factory=list)
     limit: int = Field(default=20, ge=1, le=200)
     offset: int = Field(default=0, ge=0)
@@ -95,6 +110,10 @@ class AdvancedSearchResultOut(BaseModel):
 
     company: CompanyOut
     match_strength: MatchStrength
+    # Distinct Source.name values behind this company's observations -- see
+    # app.ingestion.source_names. Populated by the route, not by
+    # model_validate(company).
+    sources: list[str] = []
 
 
 class AdvancedSearchResponse(BaseModel):

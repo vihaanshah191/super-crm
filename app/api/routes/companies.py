@@ -12,6 +12,7 @@ from app.api.schemas import (
     EvidenceOut,
 )
 from app.db.base import get_db
+from app.ingestion.source_names import source_names_by_evidence
 from app.models.company import Company
 from app.models.evidence import Evidence
 from app.models.financials import CompanyFinancials
@@ -32,11 +33,17 @@ def get_company(company_id: uuid.UUID, db: Session = Depends(get_db)) -> Company
     company = _get_company_or_404(company_id, db)
 
     evidence_rows = list(db.scalars(select(Evidence).where(Evidence.company_id == company_id)))
+    source_names = source_names_by_evidence(db, [e.id for e in evidence_rows])
+
+    def _evidence_out(e: Evidence) -> EvidenceOut:
+        out = EvidenceOut.model_validate(e)
+        out.sources = source_names.get(e.id, [])
+        return out
 
     company_out = CompanyOut.model_validate(company)
     return CompanyDetailOut(
         **company_out.model_dump(),
-        evidence=[EvidenceOut.model_validate(e) for e in evidence_rows],
+        evidence=[_evidence_out(e) for e in evidence_rows],
     )
 
 

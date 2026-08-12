@@ -330,6 +330,15 @@ def _apply_field_to_company(company: Company, field_name: str, value: str | None
     if field_name == "industry":
         company.industry = value
         return
+    if field_name == "sub_industry":
+        company.sub_industry = value
+        return
+    if field_name == "company_category":
+        company.company_category = value
+        return
+    if field_name == "export_status":
+        company.export_status = _safe_bool(value)
+        return
     if field_name == "state":
         company.state = value.title()
         return
@@ -352,6 +361,9 @@ def _apply_field_to_company(company: Company, field_name: str, value: str | None
         return  # tracked as Evidence only; not part of the canonical column set
     if field_name == "products":
         company.products = [p.strip() for p in value.split(",") if p.strip()]
+        return
+    if field_name == "services":
+        company.services = [s.strip() for s in value.split(",") if s.strip()]
         return
     if field_name == "employee_count":
         company.employee_count = _safe_int(value)
@@ -386,6 +398,15 @@ def _safe_int(value: str) -> int | None:
         return int(float(value))
     except (TypeError, ValueError):
         return None
+
+
+def _safe_bool(value: str) -> bool | None:
+    normalized = value.strip().lower()
+    if normalized in ("true", "1", "yes"):
+        return True
+    if normalized in ("false", "0", "no"):
+        return False
+    return None
 
 
 def _safe_float(value: str) -> float | None:

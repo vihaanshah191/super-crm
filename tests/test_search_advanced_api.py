@@ -3,10 +3,13 @@ prove the FilterGroup/FilterCondition union type round-trips correctly
 across a real JSON request body (not just as in-process Python objects, as
 tests/test_filter_engine.py exercises)."""
 
+from datetime import datetime, timezone
+
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.company import Company
+from app.models.observation import RawObservation
 
 client = TestClient(app)
 
@@ -124,3 +127,86 @@ class TestAdvancedSearchEndpoint:
         assert "Test Co" in main_names
         assert "Unknown Rev" in unknown_names
         assert "Unknown Rev" not in main_names
+
+    def test_sources_field_lists_real_source_names_not_just_a_count(self, db, website_source, mca_source):
+        company = _company(state="Maharashtra")
+        db.add(company)
+        db.commit()
+        db.add_all(
+            [
+                RawObservation(
+                    company_id=company.id, source_id=website_source.id, source_type="website",
+                    field="canonical_name", raw_value="Test Co", normalized_value="test co",
+                    collected_at=datetime.now(timezone.utc), confidence=0.5, verification_type="observed",
+                    collector_version="test/1.0",
+                ),
+                RawObservation(
+                    company_id=company.id, source_id=mca_source.id, source_type="government_dataset",
+                    field="canonical_name", raw_value="Test Co", normalized_value="test co",
+                    collected_at=datetime.now(timezone.utc), confidence=0.95, verification_type="verified",
+                    collector_version="test/1.0",
+                ),
+            ]
+        )
+        db.commit()
+
+        response = client.post(
+            "/api/search/companies/advanced",
+            json={"filter": {"field": "state", "operator": "=", "value": "Maharashtra", "data_type": "string"}},
+        )
+        assert response.status_code == 200
+        result = response.json()["results"][0]
+        assert set(result["sources"]) == {website_source.name, mca_source.name}
+
+    def test_country_scope_restricts_results(self, db):
+        india = _company(state="Maharashtra", country_code="IN")
+        us = _company(canonical_name="US Co", normalized_name="us co", state="Maharashtra", country_code="US")
+        db.add_all([india, us])
+        db.commit()
+
+        response = client.post(
+            "/api/search/companies/advanced",
+            json={
+                "filter": {"field": "state", "operator": "=", "value": "Maharashtra", "data_type": "string"},
+                "country_scope": ["IN"],
+            },
+        )
+        assert response.status_code == 200
+        names = {r["company"]["canonical_name"] for r in response.json()["results"]}
+        assert "Test Co" in names
+        assert "US Co" not in names
+
+    def test_source_scope_restricts_results(self, db, website_source, mca_source):
+        from_website = _company(state="Maharashtra")
+        from_mca = _company(canonical_name="MCA Co", normalized_name="mca co", state="Maharashtra")
+        db.add_all([from_website, from_mca])
+        db.commit()
+        db.add_all(
+            [
+                RawObservation(
+                    company_id=from_website.id, source_id=website_source.id, source_type="website",
+                    field="canonical_name", raw_value="x", normalized_value="x",
+                    collected_at=datetime.now(timezone.utc), confidence=0.5, verification_type="observed",
+                    collector_version="test/1.0",
+                ),
+                RawObservation(
+                    company_id=from_mca.id, source_id=mca_source.id, source_type="government_dataset",
+                    field="canonical_name", raw_value="x", normalized_value="x",
+                    collected_at=datetime.now(timezone.utc), confidence=0.95, verification_type="verified",
+                    collector_version="test/1.0",
+                ),
+            ]
+        )
+        db.commit()
+
+        response = client.post(
+            "/api/search/companies/advanced",
+            json={
+                "filter": {"field": "state", "operator": "=", "value": "Maharashtra", "data_type": "string"},
+                "source_scope": [str(website_source.id)],
+            },
+        )
+        assert response.status_code == 200
+        names = {r["company"]["canonical_name"] for r in response.json()["results"]}
+        assert "Test Co" in names
+        assert "MCA Co" not in names

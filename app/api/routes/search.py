@@ -10,6 +10,7 @@ from app.api.schemas import (
     CompanySearchResultOut,
 )
 from app.db.base import get_db
+from app.ingestion.source_names import source_names_by_company
 from app.search.advanced_query import find_unknown_bucket, search_companies_advanced
 from app.search.filter_registry import InvalidFilterConditionError, UnknownFilterFieldError
 from app.search.filters import CompanySearchFilters
@@ -36,10 +37,12 @@ def search_companies(filters: CompanySearchFilters, db: Session = Depends(get_db
     """
     stmt = build_company_query(filters)
     companies = list(db.scalars(stmt))
+    source_names = source_names_by_company(db, [c.id for c in companies])
     results = []
     for company in companies:
         out = CompanySearchResultOut.model_validate(company)
         out.match_is_definite = range_match_is_definite(company, filters)
+        out.sources = source_names.get(company.id, [])
         results.append(out)
     return CompanySearchResponse(total_returned=len(results), results=results)
 
@@ -67,6 +70,8 @@ def search_companies_advanced_route(
             db,
             request.filter,
             unknown_handling=request.unknown_handling,
+            country_scope=request.country_scope or None,
+            source_scope=request.source_scope or None,
             sort=request.sort,
             limit=request.limit,
             offset=request.offset,
@@ -74,16 +79,28 @@ def search_companies_advanced_route(
     except (UnknownFilterFieldError, InvalidFilterConditionError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
+    source_names = source_names_by_company(db, [m.company.id for m in matches])
     results = [
-        AdvancedSearchResultOut(company=CompanyOut.model_validate(m.company), match_strength=m.match_strength)
+        AdvancedSearchResultOut(
+            company=CompanyOut.model_validate(m.company),
+            match_strength=m.match_strength,
+            sources=source_names.get(m.company.id, []),
+        )
         for m in matches
     ]
 
     unknown_results: list[CompanyOut] = []
     if request.unknown_handling == UnknownHandling.INCLUDE_UNKNOWN_SEPARATELY:
         try:
-            unknown_companies = find_unknown_bucket(db, request.filter, limit=request.limit, offset=request.offset)
-        except UnknownFilterFieldError as exc:
+            unknown_companies = find_unknown_bucket(
+                db,
+                request.filter,
+                country_scope=request.country_scope or None,
+                source_scope=request.source_scope or None,
+                limit=request.limit,
+                offset=request.offset,
+            )
+        except (UnknownFilterFieldError, InvalidFilterConditionError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         unknown_results = [CompanyOut.model_validate(c) for c in unknown_companies]
 
