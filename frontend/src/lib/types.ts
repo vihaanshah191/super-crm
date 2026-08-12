@@ -222,3 +222,31 @@ export interface AdvancedSearchResponse {
   results: AdvancedSearchResultOut[];
   unknown_results: CompanyOut[];
 }
+
+export interface SortSpec {
+  field: string;
+  direction?: "asc" | "desc";
+}
+
+export interface SavedSearchCreate {
+  name: string;
+  created_by: string;
+  country_scope?: string[];
+  source_scope?: string[];
+  filter_definition: FilterNode;
+  sort?: SortSpec[];
+  selected_fields?: string[];
+}
+
+export interface SavedSearchOut {
+  id: string;
+  name: string;
+  created_by: string;
+  country_scope: string[];
+  source_scope: string[];
+  filter_definition: FilterNode;
+  sort: SortSpec[];
+  selected_fields: string[];
+  created_at: string;
+  updated_at: string;
+}

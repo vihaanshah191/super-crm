@@ -15,8 +15,14 @@ columns now, and every CLI-created Source row (`filesure_lookup.py`,
 `import_mca.py`'s file importer, `import_custom_source.py`, `seed_dev.py`)
 declares its `access_method`/`compliance_status` explicitly rather than
 leaving the field at its `unknown`/`under_review` default. Phase 6 (saved
-searches) and Phase 9 (per-platform adapters, none of which currently pass
-Section I's compliance bar) remain undone.
+searches) is now also implemented (Alembic revision `4ffd7972b684`,
+`app/models/saved_search.py`, `POST /api/saved-searches`) -- see its own
+migration commit for the schema, and the Discover page's "Save this
+search"/"Saved searches" UI for the frontend. Real ORDER BY support
+(`SortSpec`/`compile_order_by`) was added alongside it, since a saved
+search's stored `sort` field would otherwise be decorative. Only Phase 9
+(per-platform adapters, none of which currently pass Section I's
+compliance bar) remains undone.
 
 ## A. Current source adapter architecture
 

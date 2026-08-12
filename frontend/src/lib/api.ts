@@ -8,8 +8,11 @@ import type {
   CompanySearchResponse,
   EntityMatchCandidateDetailOut,
   IngestionJobOut,
+  SavedSearchCreate,
+  SavedSearchOut,
   SourceHealthOut,
   SourceOut,
+  UnknownHandling,
 } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
@@ -49,6 +52,32 @@ export function searchCompaniesAdvanced(searchRequest: AdvancedSearchRequest): P
   return request<AdvancedSearchResponse>("/api/search/companies/advanced", {
     method: "POST",
     body: JSON.stringify(searchRequest),
+  });
+}
+
+export function createSavedSearch(body: SavedSearchCreate): Promise<SavedSearchOut> {
+  return request<SavedSearchOut>("/api/saved-searches", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function listSavedSearches(createdBy?: string): Promise<SavedSearchOut[]> {
+  const query = createdBy ? `?created_by=${encodeURIComponent(createdBy)}` : "";
+  return request<SavedSearchOut[]>(`/api/saved-searches${query}`);
+}
+
+export function deleteSavedSearch(id: string): Promise<void> {
+  return request(`/api/saved-searches/${id}`, { method: "DELETE" });
+}
+
+export function executeSavedSearch(
+  id: string,
+  options?: { unknown_handling?: UnknownHandling; limit?: number; offset?: number }
+): Promise<AdvancedSearchResponse> {
+  return request<AdvancedSearchResponse>(`/api/saved-searches/${id}/execute`, {
+    method: "POST",
+    body: JSON.stringify(options ?? {}),
   });
 }
 
