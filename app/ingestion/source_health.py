@@ -9,11 +9,11 @@ supposed to summarize. This is a read-only projection over that table, not
 new state.
 
 `compliance_status` (ACTIVE/REQUIRES_LICENSE/NOT_AVAILABLE/UNDER_REVIEW,
-see the assessment doc) isn't included here -- that's a genuinely new,
-first-class fact about a source (not derivable from job history), and
-needs the `sources.compliance_status` column proposed as Migration 1,
-which hasn't been applied yet. Only `collection_enabled` (already a real
-column) stands in for it today.
+see the assessment doc) isn't recomputed here -- it's a genuinely new,
+first-class fact about a source (not derivable from job history), stored
+directly on `Source` (see the `5c66876cc0f9` migration) and exposed as-is
+through `SourceHealth.source.compliance_status` / `SourceOut` rather than
+duplicated onto this dataclass.
 """
 
 from __future__ import annotations
