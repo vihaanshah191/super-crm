@@ -73,19 +73,28 @@ def search_companies_advanced(
         select(Company)
         .where(where_clause, *_scope_clauses(country_scope, source_scope))
         .order_by(*order_by)
-        .offset(offset)
-        .limit(limit)
     )
-    companies = list(db.scalars(stmt))
-
-    results = [
-        AdvancedSearchResult(company=c, match_strength=evaluate_match_strength(filter_node, c)) for c in companies
-    ]
 
     if unknown_handling == UnknownHandling.DEFINITE_ONLY:
+        # POSSIBLE rows pass the SQL WHERE by design (see filter_compiler's
+        # module docstring) and only get dropped by the match-strength
+        # filter below. Paginating in SQL *before* that filter can return a
+        # short or empty page even though more DEFINITE matches exist
+        # further down the SQL result set. So for this mode, fetch every
+        # SQL-matching row, filter to DEFINITE, then paginate in Python --
+        # consistent with this codebase's PoC-scale posture elsewhere.
+        companies = list(db.scalars(stmt))
+        results = [
+            AdvancedSearchResult(company=c, match_strength=evaluate_match_strength(filter_node, c))
+            for c in companies
+        ]
         results = [r for r in results if r.match_strength == MatchStrength.DEFINITE]
+        return results[offset : offset + limit]
 
-    return results
+    companies = list(db.scalars(stmt.offset(offset).limit(limit)))
+    return [
+        AdvancedSearchResult(company=c, match_strength=evaluate_match_strength(filter_node, c)) for c in companies
+    ]
 
 
 def find_unknown_bucket(

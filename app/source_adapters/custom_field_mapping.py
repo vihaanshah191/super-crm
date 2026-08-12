@@ -36,6 +36,7 @@ CANONICAL_FIELD_TYPES: dict[str, str] = {
     "state": "string",
     "postal_code": "string",
     "country": "string",
+    "country_code": "string",  # ISO 3166-1 alpha-2, e.g. "IN" -- see app.search.advanced_query's country_scope
     "industry": "string",
     "sub_industry": "string",
     "company_type": "string",

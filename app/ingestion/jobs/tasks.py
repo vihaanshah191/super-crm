@@ -17,6 +17,7 @@ from app.core.logging import get_logger
 from app.db.base import SessionLocal
 from app.ingestion.jobs.celery_app import celery_app
 from app.ingestion.pipeline import ingest_parsed_record
+from app.models.enums import SourceAccessMethod
 from app.models.ingestion_job import IngestionJob
 from app.models.source import Source
 from app.source_adapters.base import SourceAdapter
@@ -60,10 +61,26 @@ def _policy_from_source(source: Source) -> SourcePolicy:
 def dispatch_enabled_source_collections() -> dict:
     """Celery Beat entry point: fan out one run_source_collection task per
     enabled source. idempotency_key is the current date, so re-dispatching
-    (e.g. a Beat misfire) never double-collects a source on the same day."""
+    (e.g. a Beat misfire) never double-collects a source on the same day.
+
+    Excludes access_method=USER_UPLOADED_FILE sources (import_mca.py's
+    file-import row, import_custom_source.py's rows): collection_enabled=True
+    on those means "this collection method is compliance-permitted," not
+    "Beat should periodically re-fetch it" -- there is no URL/resource id to
+    pass as source_target, and CustomFileAdapter.fetch() needs a real local
+    file path that only exists at CLI-run time, not on a schedule. Those
+    sources are re-collected by re-running the CLI, not by this dispatcher.
+    """
     db = SessionLocal()
     try:
-        sources = list(db.scalars(select(Source).where(Source.collection_enabled.is_(True))))
+        sources = list(
+            db.scalars(
+                select(Source).where(
+                    Source.collection_enabled.is_(True),
+                    Source.access_method != SourceAccessMethod.USER_UPLOADED_FILE.value,
+                )
+            )
+        )
         idempotency_key = date.today().isoformat()
         dispatched = []
         for source in sources:

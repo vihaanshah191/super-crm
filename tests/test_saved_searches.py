@@ -167,6 +167,21 @@ class TestExecute:
         )
         assert response.status_code == 404
 
+    def test_execute_rejects_filter_mismatching_the_registry(self, db):
+        """'confidence' is registered as NUMBER; claiming STRING with
+        CONTAINS passes Pydantic's own data_type-operator check (valid for
+        STRING in general) at creation time, so the mismatch is only
+        catchable once cross-checked against the registry -- which happens
+        at execute time, not creation time."""
+        mismatched_filter = {"field": "confidence", "operator": "CONTAINS", "value": "x", "data_type": "string"}
+        created = client.post(
+            "/api/saved-searches",
+            json={"name": "Bad registry match", "created_by": "alice", "filter_definition": mismatched_filter},
+        ).json()
+
+        response = client.post(f"/api/saved-searches/{created['id']}/execute", json={})
+        assert response.status_code == 422
+
     def test_execute_applies_country_scope(self, db):
         india = _company(state="Maharashtra", country_code="IN")
         us = _company(canonical_name="US Co", normalized_name="us co", state="Maharashtra", country_code="US")

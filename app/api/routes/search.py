@@ -11,7 +11,7 @@ from app.api.schemas import (
 )
 from app.db.base import get_db
 from app.search.advanced_query import find_unknown_bucket, search_companies_advanced
-from app.search.filter_registry import UnknownFilterFieldError
+from app.search.filter_registry import InvalidFilterConditionError, UnknownFilterFieldError
 from app.search.filters import CompanySearchFilters
 from app.search.filter_types import UnknownHandling
 from app.search.query import build_company_query, range_match_is_definite
@@ -71,7 +71,7 @@ def search_companies_advanced_route(
             limit=request.limit,
             offset=request.offset,
         )
-    except UnknownFilterFieldError as exc:
+    except (UnknownFilterFieldError, InvalidFilterConditionError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     results = [

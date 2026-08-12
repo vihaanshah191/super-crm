@@ -72,6 +72,29 @@ class TestAdvancedSearchEndpoint:
         )
         assert response.status_code == 422
 
+    def test_data_type_mismatching_the_registry_returns_422(self, db):
+        """'confidence' is registered as NUMBER; a client claiming STRING
+        passes Pydantic's own per-data_type operator check (CONTAINS is
+        valid for STRING in general) but must still be rejected once
+        cross-checked against what the registry actually says confidence
+        is -- not crash inside the string compiler on a numeric column."""
+        response = client.post(
+            "/api/search/companies/advanced",
+            json={"filter": {"field": "confidence", "operator": "CONTAINS", "value": "x", "data_type": "string"}},
+        )
+        assert response.status_code == 422
+
+    def test_operator_outside_fields_own_allowed_set_returns_422(self, db):
+        """EQ is valid for DATE in general, but last_verified_at's own
+        FieldSpec.allowed_operators restricts it to ordering/EXISTS
+        operators -- a stricter, per-field rule Pydantic's data_type-level
+        check alone can't enforce."""
+        response = client.post(
+            "/api/search/companies/advanced",
+            json={"filter": {"field": "last_verified_at", "operator": "=", "value": "2024-01-01", "data_type": "date"}},
+        )
+        assert response.status_code == 422
+
     def test_unknown_handling_include_unknown_separately(self, db):
         matches = _company(state="Maharashtra", annual_revenue_inr=200_000_000)
         unknown_revenue = _company(

@@ -178,6 +178,12 @@ class FileSureAdapter(SourceAdapter):
 
         if cin := f.get("cin"):
             add("cin", cin, cin.upper())
+            # FileSure resells India's MCA registry (CIN is an MCA/India
+            # identifier) -- safe to assert unconditionally. Populates
+            # Company.country_code so country_scope-restricted saved
+            # searches (app.search.advanced_query) don't silently exclude
+            # real Indian companies collected via FileSure.
+            add("country_code", "IN", "IN")
 
         if name := f.get("company_name"):
             add("legal_name", name, name.strip())

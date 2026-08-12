@@ -15,7 +15,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from app.models.company import Company
-from app.search.filter_types import OPERATORS_BY_DATA_TYPE, FilterDataType, FilterOperator
+from app.search.filter_types import OPERATORS_BY_DATA_TYPE, FilterCondition, FilterDataType, FilterOperator
 
 
 @dataclass(frozen=True)
@@ -81,11 +81,46 @@ class UnknownFilterFieldError(ValueError):
     pass
 
 
+class InvalidFilterConditionError(ValueError):
+    """Raised when a FilterCondition's data_type or operator doesn't match
+    what FIELD_REGISTRY declares for condition.field. Pydantic (see
+    FilterCondition._check_operator_valid_for_type) only checks the
+    operator against what's valid for the *claimed* data_type in general --
+    a client can still claim data_type="string" for a field the registry
+    says is NUMBER, or use an operator this specific field disallows (e.g.
+    last_verified_at only allows ordering operators, not EQ/NE). This is
+    the second, field-specific check re-validated server-side."""
+
+
 def get_field_spec(field_name: str) -> FieldSpec:
     spec = FIELD_REGISTRY.get(field_name)
     if spec is None:
         raise UnknownFilterFieldError(
             f"'{field_name}' is not a filterable field. Known fields: {sorted(FIELD_REGISTRY)}"
+        )
+    return spec
+
+
+def validate_condition(condition: FilterCondition) -> FieldSpec:
+    """Resolve condition.field's FieldSpec and cross-check it against what
+    the client actually sent -- data_type must match the registry's
+    declared type, and operator must be within this field's own
+    allowed_operators (a stricter, per-field subset of what's merely valid
+    for the data_type in general -- see FieldSpec.allowed_operators). Called
+    once per condition by filter_compiler._compile_condition() before any
+    type-specific compilation runs, so a mismatch is rejected with a clear
+    422-mappable error instead of crashing inside _compile_numeric/
+    _compile_string with an unhandled ValueError, or silently bypassing a
+    field's intended operator restriction."""
+    spec = get_field_spec(condition.field)
+    if condition.data_type != spec.data_type:
+        raise InvalidFilterConditionError(
+            f"field '{condition.field}' has data_type {spec.data_type.value!r}, not {condition.data_type.value!r}"
+        )
+    if condition.operator not in spec.allowed_operators:
+        raise InvalidFilterConditionError(
+            f"operator {condition.operator.value!r} is not allowed for field '{condition.field}' "
+            f"(allowed: {sorted(o.value for o in spec.allowed_operators)})"
         )
     return spec
 

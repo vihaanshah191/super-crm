@@ -345,6 +345,9 @@ def _apply_field_to_company(company: Company, field_name: str, value: str | None
         # and title-casing a code would corrupt it (US -> Us).
         company.country = value.strip()
         return
+    if field_name == "country_code":
+        company.country_code = value.strip().upper()
+        return
     if field_name in ("authorized_capital_inr", "paidup_capital_inr", "pan", "roc"):
         return  # tracked as Evidence only; not part of the canonical column set
     if field_name == "products":
@@ -362,6 +365,18 @@ def _apply_field_to_company(company: Company, field_name: str, value: str | None
     if field_name == "incorporation_date":
         company.incorporation_date = _safe_date(value)
         return
+    if field_name == "annual_revenue_inr":
+        company.annual_revenue_inr = _safe_float(value)
+        return
+    if field_name == "revenue_range_min_inr":
+        company.revenue_range_min_inr = _safe_float(value)
+        return
+    if field_name == "revenue_range_max_inr":
+        company.revenue_range_max_inr = _safe_float(value)
+        return
+    if field_name == "revenue_year":
+        company.revenue_year = _safe_int(value)
+        return
     # Unknown fields are still preserved as Evidence (above); they simply
     # don't have a canonical Company column to project onto.
 
@@ -369,6 +384,13 @@ def _apply_field_to_company(company: Company, field_name: str, value: str | None
 def _safe_int(value: str) -> int | None:
     try:
         return int(float(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_float(value: str) -> float | None:
+    try:
+        return float(value)
     except (TypeError, ValueError):
         return None
 

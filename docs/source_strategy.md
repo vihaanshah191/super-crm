@@ -68,7 +68,10 @@ optional" rule above:
   authorization step) -- nothing in search, company-profile access, or
   unscoped background ingestion calls it.
 - FileSure data is never treated as more trustworthy than what it actually
-  is: observations land as `VerificationType.OBSERVED`/company confidence
-  one notch below a direct MCA feed, never silently promoted to
-  `VERIFIED`, and revenue is never conflated with authorized/paid-up
-  capital (FileSure's master-data endpoint doesn't expose revenue at all).
+  is: observations use the same `VerificationType.VERIFIED` a direct MCA
+  feed uses (FileSure resells MCA registry data, it doesn't merely observe
+  it), but at a confidence weight one notch below MCA's (0.85 vs. 0.95 --
+  see `_MASTER_DATA_CONFIDENCE` in `app/source_adapters/filesure_adapter.py`),
+  reflecting the added reseller provenance hop. Revenue is never conflated
+  with authorized/paid-up capital (FileSure's master-data endpoint doesn't
+  expose revenue at all).
