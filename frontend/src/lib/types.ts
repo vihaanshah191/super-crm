@@ -31,6 +31,7 @@ export interface CompanyOut {
   city: string | null;
   state: string | null;
   country: string | null;
+  country_code: string | null;
   postal_code: string | null;
 
   industry: string | null;
@@ -113,11 +114,25 @@ export interface CompanyGSTRegistrationOut {
 export interface SourceOut {
   id: string;
   name: string;
+  display_name: string | null;
   source_type: string;
+  countries: string[];
+  access_method: string;
+  compliance_status: string;
   collection_enabled: boolean;
   rate_limit_per_minute: number;
   reliability_weight: number;
   license_notes: string | null;
+}
+
+export interface SourceHealthOut {
+  source: SourceOut;
+  last_successful_run: string | null;
+  last_run_status: string | null;
+  last_run_at: string | null;
+  last_error: string | null;
+  records_collected_total: number;
+  total_jobs: number;
 }
 
 export interface IngestionJobOut {
@@ -148,4 +163,90 @@ export interface EntityMatchCandidateOut {
 
 export interface EntityMatchCandidateDetailOut extends EntityMatchCandidateOut {
   candidate_company: CompanyOut | null;
+}
+
+// Mirrors app/search/filter_types.py -- the generic filter engine behind
+// POST /api/search/companies/advanced. See lib/filter-fields.ts for the
+// field registry (mirrors app/search/filter_registry.py) that drives the
+// Discover page's dynamic filter builder.
+
+export type FilterDataType = "string" | "number" | "date" | "boolean" | "enum";
+
+export type FilterOperator =
+  | "="
+  | "!="
+  | ">"
+  | ">="
+  | "<"
+  | "<="
+  | "IN"
+  | "NOT_IN"
+  | "CONTAINS"
+  | "STARTS_WITH"
+  | "EXISTS"
+  | "NOT_EXISTS"
+  | "BETWEEN";
+
+export interface FilterCondition {
+  field: string;
+  operator: FilterOperator;
+  data_type: FilterDataType;
+  value?: unknown;
+}
+
+export interface FilterGroup {
+  op: "AND" | "OR" | "NOT";
+  conditions: FilterNode[];
+}
+
+export type FilterNode = FilterCondition | FilterGroup;
+
+export type MatchStrength = "definite" | "possible" | "unknown";
+
+export type UnknownHandling = "definite_only" | "definite_and_possible" | "include_unknown_separately";
+
+export interface AdvancedSearchRequest {
+  filter: FilterNode;
+  unknown_handling?: UnknownHandling;
+  limit?: number;
+  offset?: number;
+}
+
+export interface AdvancedSearchResultOut {
+  company: CompanyOut;
+  match_strength: MatchStrength;
+}
+
+export interface AdvancedSearchResponse {
+  total_returned: number;
+  results: AdvancedSearchResultOut[];
+  unknown_results: CompanyOut[];
+}
+
+export interface SortSpec {
+  field: string;
+  direction?: "asc" | "desc";
+}
+
+export interface SavedSearchCreate {
+  name: string;
+  created_by: string;
+  country_scope?: string[];
+  source_scope?: string[];
+  filter_definition: FilterNode;
+  sort?: SortSpec[];
+  selected_fields?: string[];
+}
+
+export interface SavedSearchOut {
+  id: string;
+  name: string;
+  created_by: string;
+  country_scope: string[];
+  source_scope: string[];
+  filter_definition: FilterNode;
+  sort: SortSpec[];
+  selected_fields: string[];
+  created_at: string;
+  updated_at: string;
 }

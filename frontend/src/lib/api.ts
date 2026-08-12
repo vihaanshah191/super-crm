@@ -1,4 +1,6 @@
 import type {
+  AdvancedSearchRequest,
+  AdvancedSearchResponse,
   CompanyDetailOut,
   CompanyFinancialsOut,
   CompanyGSTRegistrationOut,
@@ -6,7 +8,11 @@ import type {
   CompanySearchResponse,
   EntityMatchCandidateDetailOut,
   IngestionJobOut,
+  SavedSearchCreate,
+  SavedSearchOut,
+  SourceHealthOut,
   SourceOut,
+  UnknownHandling,
 } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
@@ -42,6 +48,39 @@ export function searchCompanies(filters: CompanySearchFilters): Promise<CompanyS
   });
 }
 
+export function searchCompaniesAdvanced(searchRequest: AdvancedSearchRequest): Promise<AdvancedSearchResponse> {
+  return request<AdvancedSearchResponse>("/api/search/companies/advanced", {
+    method: "POST",
+    body: JSON.stringify(searchRequest),
+  });
+}
+
+export function createSavedSearch(body: SavedSearchCreate): Promise<SavedSearchOut> {
+  return request<SavedSearchOut>("/api/saved-searches", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function listSavedSearches(createdBy?: string): Promise<SavedSearchOut[]> {
+  const query = createdBy ? `?created_by=${encodeURIComponent(createdBy)}` : "";
+  return request<SavedSearchOut[]>(`/api/saved-searches${query}`);
+}
+
+export function deleteSavedSearch(id: string): Promise<void> {
+  return request(`/api/saved-searches/${id}`, { method: "DELETE" });
+}
+
+export function executeSavedSearch(
+  id: string,
+  options?: { unknown_handling?: UnknownHandling; limit?: number; offset?: number }
+): Promise<AdvancedSearchResponse> {
+  return request<AdvancedSearchResponse>(`/api/saved-searches/${id}/execute`, {
+    method: "POST",
+    body: JSON.stringify(options ?? {}),
+  });
+}
+
 export function getCompany(id: string): Promise<CompanyDetailOut> {
   return request<CompanyDetailOut>(`/api/companies/${id}`);
 }
@@ -56,6 +95,10 @@ export function getCompanyGstRegistrations(id: string): Promise<CompanyGSTRegist
 
 export function listSources(): Promise<SourceOut[]> {
   return request<SourceOut[]>("/api/ingestion/sources");
+}
+
+export function listSourceHealth(): Promise<SourceHealthOut[]> {
+  return request<SourceHealthOut[]>("/api/ingestion/sources/health");
 }
 
 export function listIngestionJobs(status?: string): Promise<IngestionJobOut[]> {

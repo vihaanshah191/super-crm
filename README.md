@@ -62,7 +62,4 @@ pytest
 - `docs/entity_resolution.md` -- matching rules, review queue
 - `docs/confidence_engine.md` -- how confidence/verification_type are computed
 - `docs/compliance.md` -- per-source compliance controls, what's enabled today
-<<<<<<< HEAD
 - `docs/source_strategy.md` -- the tiered source strategy and why Super CRM has no paid-per-call dependency
-=======
->>>>>>> 3698f6932ecf2969d1d18f2fc5466ee0f4fd2b55

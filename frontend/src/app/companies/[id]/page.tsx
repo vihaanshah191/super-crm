@@ -62,6 +62,8 @@ export default async function CompanyProfilePage({ params }: { params: Promise<{
         <SummaryStat label="Incorporated" value={formatDate(company.incorporation_date)} />
       </div>
 
+      <ContactCard phone={company.public_phone} email={company.public_email} website={company.website} />
+
       <Tabs defaultValue="evidence">
         <TabsList>
           <TabsTrigger value="evidence">Evidence &amp; Provenance</TabsTrigger>
@@ -191,8 +193,7 @@ export default async function CompanyProfilePage({ params }: { params: Promise<{
 
       <Separator />
       <p className="text-xs text-muted-foreground">
-        Identity: CIN {company.cin ?? "unknown"} · GSTIN (primary) {company.gstin ?? "unknown"} · Website{" "}
-        {company.website ?? "unknown"}
+        Identity: CIN {company.cin ?? "unknown"} · GSTIN (primary) {company.gstin ?? "unknown"}
       </p>
     </div>
   );
@@ -206,5 +207,43 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
         <p className="text-lg font-semibold">{value}</p>
       </CardContent>
     </Card>
+  );
+}
+
+// Surfaces contact fields already captured on Company (public_phone/
+// public_email/website -- populated today by WebsiteAdapter) but never
+// previously shown anywhere in the frontend. No new backend field or
+// source: this only makes existing, already-collected data reachable.
+function ContactCard({ phone, email, website }: { phone: string | null; email: string | null; website: string | null }) {
+  const websiteHref = website ? (website.startsWith("http://") || website.startsWith("https://") ? website : `https://${website}`) : null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Contact</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <ContactField label="Phone" value={phone} href={phone ? `tel:${phone}` : null} />
+          <ContactField label="Email" value={email} href={email ? `mailto:${email}` : null} />
+          <ContactField label="Website" value={website} href={websiteHref} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ContactField({ label, value, href }: { label: string; value: string | null; href: string | null }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      {value && href ? (
+        <a href={href} className="text-sm font-medium text-primary hover:underline" target={href.startsWith("http") ? "_blank" : undefined} rel={href.startsWith("http") ? "noopener noreferrer" : undefined}>
+          {value}
+        </a>
+      ) : (
+        <p className="text-sm text-muted-foreground">Not available</p>
+      )}
+    </div>
   );
 }

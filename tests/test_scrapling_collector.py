@@ -30,8 +30,6 @@ def _make_response(status=200, url="https://example.test/page", body=b"<html></h
     )
 
 
-<<<<<<< HEAD
-=======
 class TestFetchStaticCallsScraplingWithOneAttempt:
     """Regression test: fetch_static() previously passed retries=0 to
     Fetcher.get(), which Scrapling treats as "make zero attempts" (a
@@ -73,7 +71,6 @@ class TestFetchStaticCallsScraplingWithOneAttempt:
         assert captured_kwargs["stealthy_headers"] is False
 
 
->>>>>>> 3698f6932ecf2969d1d18f2fc5466ee0f4fd2b55
 class TestNormalizeResponse:
     def test_converts_response_to_fetch_result(self):
         collector = ScraplingCollector()

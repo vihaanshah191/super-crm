@@ -6,25 +6,6 @@ from app.core.config import get_settings
 
 _REDACT_KEYS = {"api_key", "apikey", "password", "secret", "token", "authorization"}
 
-<<<<<<< HEAD
-# Query-string secrets embedded in a URL string (e.g.
-# "https://api.data.gov.in/resource/...?api-key=REALKEY&format=json") aren't
-# caught by the dict-key check above, since the sensitive value lives inside
-# a string under an innocuous key like "target" or "url". data.gov.in's API
-# requires the key as a query param (no header alternative confirmed), so any
-# log line that includes a fetch target/error message for that request can
-# leak it verbatim unless string values are scanned too.
-_QUERY_SECRET_PATTERN = re.compile(r"(?i)(api[-_]?key|token|secret)=[^&\s]+")
-
-
-def scrub_secrets(value: str) -> str:
-    """Redact api-key/token/secret query-string parameters embedded in a URL
-    or error-message string. Exported so callers formatting their own
-    user-facing error text (e.g. CLI commands printing a caught exception
-    that embeds a fetch target URL) can apply the same redaction the logging
-    filter uses, rather than leaking a credential outside the log pipeline."""
-    return _QUERY_SECRET_PATTERN.sub(r"\1=***", value)
-=======
 # Secrets embedded inside a string value under an innocuous key (e.g. "url"
 # or "error") aren't caught by the dict-key check above. Two shapes are
 # covered: URL query params (data.gov.in's "?api-key=REALKEY") and
@@ -46,7 +27,6 @@ def scrub_secrets(value: str) -> str:
     or headers) can apply the same redaction the logging filter uses,
     rather than leaking a credential outside the log pipeline."""
     return _QUERY_SECRET_PATTERN.sub(lambda m: f"{m.group(1)}=***", value)
->>>>>>> 3698f6932ecf2969d1d18f2fc5466ee0f4fd2b55
 
 
 class RedactingFilter(logging.Filter):
@@ -68,14 +48,11 @@ class RedactingFilter(logging.Filter):
 
 def configure_logging() -> None:
     settings = get_settings()
-<<<<<<< HEAD
     # Windows consoles default to a legacy codepage (e.g. cp1252) that can't
     # encode arbitrary non-ASCII log content (company names, "₹", etc.);
     # force UTF-8 so logging never crashes on it.
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
-=======
->>>>>>> 3698f6932ecf2969d1d18f2fc5466ee0f4fd2b55
     handler = logging.StreamHandler(sys.stdout)
     handler.addFilter(RedactingFilter())
     formatter = logging.Formatter(

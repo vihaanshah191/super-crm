@@ -83,6 +83,28 @@ class TestIngestionEndpoints:
         assert response.status_code == 200
         assert any(s["name"] == "test_source_for_api" for s in response.json())
 
+    def test_list_sources_exposes_generic_metadata(self, db):
+        db.add(
+            Source(
+                name="metadata_api_test_source",
+                display_name="Metadata API Test Source",
+                source_type="registry_data_provider",
+                countries=["IN"],
+                access_method="official_api",
+                compliance_status="active",
+                collection_enabled=True,
+            )
+        )
+        db.commit()
+
+        response = client.get("/api/ingestion/sources")
+        assert response.status_code == 200
+        entry = next(s for s in response.json() if s["name"] == "metadata_api_test_source")
+        assert entry["display_name"] == "Metadata API Test Source"
+        assert entry["countries"] == ["IN"]
+        assert entry["access_method"] == "official_api"
+        assert entry["compliance_status"] == "active"
+
     def test_list_jobs_filters_by_status(self, db):
         source = Source(name="job_test_source", source_type="government_dataset", collection_enabled=False)
         db.add(source)
@@ -99,6 +121,39 @@ class TestIngestionEndpoints:
         assert response.status_code == 200
         statuses = {j["status"] for j in response.json()}
         assert statuses == {"failed"}
+
+    def test_source_health_derives_from_job_history(self, db):
+        source = Source(name="health_test_source", source_type="government_dataset", collection_enabled=True)
+        db.add(source)
+        db.flush()
+        db.add_all(
+            [
+                IngestionJob(
+                    source_id=source.id, status="failed", idempotency_key="k1", error_summary="boom", records_updated=0
+                ),
+                IngestionJob(source_id=source.id, status="success", idempotency_key="k2", records_updated=4),
+            ]
+        )
+        db.commit()
+
+        response = client.get("/api/ingestion/sources/health")
+        assert response.status_code == 200
+        entry = next(h for h in response.json() if h["source"]["name"] == "health_test_source")
+        assert entry["last_run_status"] == "success"
+        assert entry["last_error"] == "boom"
+        assert entry["records_collected_total"] == 4
+        assert entry["total_jobs"] == 2
+
+    def test_source_health_no_jobs_reports_no_last_run(self, db):
+        source = Source(name="no_jobs_source", source_type="government_dataset", collection_enabled=False)
+        db.add(source)
+        db.commit()
+
+        response = client.get("/api/ingestion/sources/health")
+        assert response.status_code == 200
+        entry = next(h for h in response.json() if h["source"]["name"] == "no_jobs_source")
+        assert entry["last_successful_run"] is None
+        assert entry["total_jobs"] == 0
 
 
 class TestReviewQueueEndpoints:

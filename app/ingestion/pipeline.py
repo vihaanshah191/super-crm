@@ -336,14 +336,17 @@ def _apply_field_to_company(company: Company, field_name: str, value: str | None
     if field_name == "postal_code":
         company.postal_code = value
         return
-<<<<<<< HEAD
-=======
     if field_name == "city":
         company.city = value.title()
         return
+    if field_name == "country":
+        # Not title-cased like state/city -- a country value may already be
+        # a properly-cased name ("United States") or an ISO code ("US"),
+        # and title-casing a code would corrupt it (US -> Us).
+        company.country = value.strip()
+        return
     if field_name in ("authorized_capital_inr", "paidup_capital_inr", "pan", "roc"):
         return  # tracked as Evidence only; not part of the canonical column set
->>>>>>> 3698f6932ecf2969d1d18f2fc5466ee0f4fd2b55
     if field_name == "products":
         company.products = [p.strip() for p in value.split(",") if p.strip()]
         return
@@ -359,11 +362,6 @@ def _apply_field_to_company(company: Company, field_name: str, value: str | None
     if field_name == "incorporation_date":
         company.incorporation_date = _safe_date(value)
         return
-<<<<<<< HEAD
-    if field_name in ("authorized_capital_inr", "paidup_capital_inr"):
-        return  # tracked as Evidence only; not part of the canonical column set
-=======
->>>>>>> 3698f6932ecf2969d1d18f2fc5466ee0f4fd2b55
     # Unknown fields are still preserved as Evidence (above); they simply
     # don't have a canonical Company column to project onto.
 

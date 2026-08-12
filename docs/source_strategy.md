@@ -46,10 +46,29 @@ never conflated with operating revenue -- see
 
 ## FileSure
 
-FileSure (a paid, ~₹5-per-call company lookup API) is **not a dependency
-of this codebase**. It has no adapter, client, or configuration field
-anywhere under `app/`. If it is evaluated again in the future as a Tier 4
-provider, it must be wired in behind an explicit, separately-gated
-enrichment service, gated by its own settings, and it must never be
-required for local startup, `alembic upgrade head`, `seed_dev`, ingestion,
-search, or company-profile loading.
+FileSure (a paid, ~₹5-per-call MCA registry reseller API) **is implemented
+as a Tier 4 example** -- `app/source_adapters/filesure_adapter.py` /
+`filesure_client.py`, gated by `Settings.filesure_collection_enabled`
+(default `False`) and `Settings.filesure_api_key` (default empty). See
+`docs/filesure_data_access.md` for what was verified about the API and
+`docs/multi_source_architecture.md` for how it fits the multi-source
+architecture.
+
+Its presence in the codebase does not weaken Tier 4's "intentionally
+optional" rule above:
+
+- Local startup, `alembic upgrade head`, `seed_dev`, search, and
+  company-profile loading all work with zero FileSure configuration --
+  `tests/test_no_paid_enrichment_dependency.py` asserts this directly.
+- `FileSureAdapter.fetch()` refuses to run unless
+  `FILESURE_COLLECTION_ENABLED=true` is explicitly set, independent of any
+  other configuration (see `app/source_adapters/filesure_adapter.py`).
+- The only invocation path in this codebase is the explicit
+  `python -m app.cli.filesure_lookup` CLI (a human running it *is* the
+  authorization step) -- nothing in search, company-profile access, or
+  unscoped background ingestion calls it.
+- FileSure data is never treated as more trustworthy than what it actually
+  is: observations land as `VerificationType.OBSERVED`/company confidence
+  one notch below a direct MCA feed, never silently promoted to
+  `VERIFIED`, and revenue is never conflated with authorized/paid-up
+  capital (FileSure's master-data endpoint doesn't expose revenue at all).

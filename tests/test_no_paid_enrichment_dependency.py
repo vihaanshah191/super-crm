@@ -9,14 +9,19 @@ company-profile access, and background ingestion jobs must never trigger an
 outbound call to a paid provider, and the app must start without any such
 provider's API key configured.
 
-If a licensed enrichment provider is added later (Tier 4 in the source
-strategy), it must be invoked only by an explicit, separately-gated
-enrichment service -- never automatically by these code paths -- and these
-tests should be extended accordingly rather than relaxed.
+FileSure (Tier 4, docs/source_strategy.md) is implemented in this codebase
+-- app/source_adapters/filesure_adapter.py -- as an explicit example of how
+a licensed/paid provider is allowed to exist: gated behind its own settings
+(collection_enabled defaults to False, no API key by default), invoked only
+by the explicit `python -m app.cli.filesure_lookup` CLI, and never reachable
+from search, company-profile access, or unscoped background ingestion. This
+file used to assert FileSure had zero code footprint under app/ at all;
+that's no longer the right guarantee to enforce now that Tier 4 has a real
+example. What actually matters -- and what stays enforced below -- is that
+its presence changes nothing about the paths these tests exercise.
 """
 
 import socket
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -27,10 +32,10 @@ from app.ingestion.jobs.tasks import run_source_collection
 from app.main import app
 from app.models.company import Company
 from app.source_adapters.base import FetchResult, ObservationDraft, ParsedRecord, SourceAdapter
+from app.source_adapters.filesure_adapter import FileSureAdapter
+from app.source_adapters.filesure_client import FileSureConfigurationError
 
 client = TestClient(app)
-
-APP_SRC_ROOT = Path(__file__).parent.parent / "app"
 
 
 class _BlockOutboundConnections:
@@ -56,20 +61,34 @@ class _BlockOutboundConnections:
         socket.create_connection = self._original_create_connection
 
 
-class TestNoFileSureCodeFootprint:
-    def test_no_source_file_references_filesure(self):
-        """Static guard: nothing under app/ may reference FileSure by name.
-        Company data must flow through the Source Adapter -> Evidence
-        pipeline, never a hardcoded paid-provider integration."""
-        offenders = []
-        for path in APP_SRC_ROOT.rglob("*.py"):
-            text = path.read_text(encoding="utf-8")
-            if "filesure" in text.lower():
-                offenders.append(str(path))
-        assert offenders == [], f"FileSure reference(s) found in production code: {offenders}"
+class TestFileSureIsGatedNotAutomatic:
+    """FileSure existing in the codebase is fine (see module docstring) --
+    what must hold is that it's inert by default and never self-invokes."""
 
-    def test_settings_defines_no_filesure_fields(self):
-        assert not any("filesure" in name.lower() for name in Settings.model_fields)
+    def test_filesure_settings_default_to_disabled_and_empty(self):
+        get_settings.cache_clear()
+        try:
+            settings = Settings(_env_file=None)
+        finally:
+            get_settings.cache_clear()
+        assert settings.filesure_collection_enabled is False
+        assert settings.filesure_api_key == ""
+
+    def test_filesure_adapter_refuses_to_run_when_collection_disabled(self, monkeypatch):
+        """The config-level gate in FileSureAdapter.fetch() -- independent
+        of any DB/Source state -- is what makes FileSure "not automatic"
+        even though it has a real adapter. Patches get_settings() directly
+        (not just os.environ) so this can't be defeated by a real
+        FILESURE_API_KEY sitting in a local .env -- see
+        tests/test_filesure_compliance_and_cli.py for the sibling coverage
+        this mirrors."""
+        monkeypatch.setattr(
+            "app.source_adapters.filesure_adapter.get_settings",
+            lambda: Settings(filesure_collection_enabled=False, filesure_api_key="fsk_test_x"),
+        )
+        adapter = FileSureAdapter(source_name="filesure")
+        with pytest.raises(FileSureConfigurationError):
+            adapter.fetch("L74110KA2013PLC096530")
 
 
 class TestAppStartsWithoutFileSureConfig:

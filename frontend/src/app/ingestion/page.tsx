@@ -1,4 +1,4 @@
-import { listIngestionJobs, listSources } from "@/lib/api";
+import { listIngestionJobs, listSourceHealth } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,9 +19,19 @@ const STATUS_STYLES: Record<string, string> = {
   failed: "bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-950 dark:text-red-300",
 };
 
+// Mirrors app/models/enums.py's SourceComplianceStatus. Never defaults to
+// "active" styling for an unrecognized value -- an unknown status renders
+// as plain text, not a false-positive green badge.
+const COMPLIANCE_STYLES: Record<string, string> = {
+  active: "bg-green-100 text-green-800 hover:bg-green-100 dark:bg-green-950 dark:text-green-300",
+  under_review: "bg-slate-100 text-slate-800 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300",
+  requires_license: "bg-amber-100 text-amber-800 hover:bg-amber-100 dark:bg-amber-950 dark:text-amber-300",
+  not_available: "bg-red-100 text-red-800 hover:bg-red-100 dark:bg-red-950 dark:text-red-300",
+};
+
 export default async function IngestionStatusPage() {
-  const [sources, jobs] = await Promise.all([listSources(), listIngestionJobs()]);
-  const sourceById = new Map(sources.map((s) => [s.id, s]));
+  const [sourceHealth, jobs] = await Promise.all([listSourceHealth(), listIngestionJobs()]);
+  const sourceById = new Map(sourceHealth.map((h) => [h.source.id, h.source]));
 
   return (
     <div className="flex flex-col gap-6">
@@ -29,13 +39,15 @@ export default async function IngestionStatusPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Ingestion Status</h1>
         <p className="text-sm text-muted-foreground">
           Every source is gated by <code className="text-xs">collection_enabled</code> before it can be fetched --
-          see docs/compliance.md.
+          see docs/compliance.md. Last run / last error / records collected are derived from ingestion job
+          history, not separately stored -- a source that has never run shows &quot;Never run&quot;, not a
+          fabricated status.
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Sources ({sources.length})</CardTitle>
+          <CardTitle className="text-base">Sources ({sourceHealth.length})</CardTitle>
         </CardHeader>
         <CardContent>
           <Table>
@@ -43,25 +55,49 @@ export default async function IngestionStatusPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Type</TableHead>
+                <TableHead>Countries</TableHead>
+                <TableHead>Access method</TableHead>
+                <TableHead>Compliance status</TableHead>
                 <TableHead>Collection enabled</TableHead>
+                <TableHead>Last successful run</TableHead>
+                <TableHead>Last error</TableHead>
+                <TableHead>Records collected</TableHead>
                 <TableHead>Rate limit / min</TableHead>
                 <TableHead>Reliability</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sources.map((s) => (
-                <TableRow key={s.id}>
-                  <TableCell className="font-mono text-xs">{s.name}</TableCell>
-                  <TableCell>{s.source_type}</TableCell>
+              {sourceHealth.map((h) => (
+                <TableRow key={h.source.id}>
+                  <TableCell className="font-medium">
+                    {h.source.display_name ?? <span className="font-mono text-xs">{h.source.name}</span>}
+                  </TableCell>
+                  <TableCell>{h.source.source_type}</TableCell>
+                  <TableCell className="text-xs">
+                    {h.source.countries.length > 0 ? h.source.countries.join(", ") : "—"}
+                  </TableCell>
+                  <TableCell className="text-xs">{h.source.access_method.replaceAll("_", " ")}</TableCell>
                   <TableCell>
-                    {s.collection_enabled ? (
+                    <Badge className={COMPLIANCE_STYLES[h.source.compliance_status] ?? ""} variant="secondary">
+                      {h.source.compliance_status.replaceAll("_", " ")}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {h.source.collection_enabled ? (
                       <Badge variant="secondary">Enabled</Badge>
                     ) : (
                       <Badge variant="outline">Disabled</Badge>
                     )}
                   </TableCell>
-                  <TableCell>{s.rate_limit_per_minute}</TableCell>
-                  <TableCell>{s.reliability_weight}/100</TableCell>
+                  <TableCell className="text-xs">
+                    {h.last_successful_run ? formatDate(h.last_successful_run) : "Never run"}
+                  </TableCell>
+                  <TableCell className="max-w-xs truncate text-xs text-muted-foreground">
+                    {h.last_error ?? "—"}
+                  </TableCell>
+                  <TableCell>{h.records_collected_total}</TableCell>
+                  <TableCell>{h.source.rate_limit_per_minute}</TableCell>
+                  <TableCell>{h.source.reliability_weight}/100</TableCell>
                 </TableRow>
               ))}
             </TableBody>

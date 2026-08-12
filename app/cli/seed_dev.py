@@ -161,7 +161,14 @@ def _get_or_create_dev_source(db) -> Source:
         return source
     source = Source(
         name=DEV_SEED_SOURCE_NAME,
+        display_name="Dev Seed (synthetic)",
         source_type="directory",
+        # Not obtained via any real mechanism -- synthesized in-process --
+        # and not available as a real collection source at all, hence
+        # NOT_AVAILABLE rather than UNDER_REVIEW (there is nothing to
+        # review; this will never become a live source).
+        access_method="unknown",
+        compliance_status="not_available",
         collection_enabled=False,
         rate_limit_per_minute=0,
         max_concurrency=0,

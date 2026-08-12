@@ -17,8 +17,6 @@ class Settings(BaseSettings):
     scrapling_default_timeout_seconds: int = 30
     scrapling_max_response_bytes: int = 10 * 1024 * 1024
     ingestion_default_concurrency: int = 4
-<<<<<<< HEAD
-=======
     # Browser TLS-fingerprint to impersonate via curl_cffi (anti-bot-detection
     # behavior -- "chrome" is Scrapling's own default and should stay the
     # default here too). Empty string disables impersonation. Exists as a
@@ -30,7 +28,6 @@ class Settings(BaseSettings):
     # to ship as the default since it weakens exactly the behavior this
     # dependency exists for.
     scrapling_impersonate: str = "chrome"
->>>>>>> 3698f6932ecf2969d1d18f2fc5466ee0f4fd2b55
 
     data_gov_in_api_key: str = ""
     data_gov_in_mca_resource_url: str = ""
@@ -45,8 +42,6 @@ class Settings(BaseSettings):
     # directly to bypass this construction entirely.
     data_gov_in_mca_resource_id: str = "4dbe5667-7b6b-41d7-82af-211562424d9a"
 
-<<<<<<< HEAD
-=======
     # FileSure (MCA registry data reseller, api.filesure.in) -- see
     # docs/filesure_data_access.md. Empty key + collection_enabled=false by
     # default; both must be explicitly set before any request is made.
@@ -55,7 +50,6 @@ class Settings(BaseSettings):
     filesure_collection_enabled: bool = False
     filesure_base_url: str = "https://api.filesure.in/v1"
 
->>>>>>> 3698f6932ecf2969d1d18f2fc5466ee0f4fd2b55
     log_level: str = "INFO"
 
     # Origins allowed to call the API cross-origin -- the Next.js frontend
