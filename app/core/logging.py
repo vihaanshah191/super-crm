@@ -48,6 +48,11 @@ class RedactingFilter(logging.Filter):
 
 def configure_logging() -> None:
     settings = get_settings()
+    # Windows consoles default to a legacy codepage (e.g. cp1252) that can't
+    # encode arbitrary non-ASCII log content (company names, "₹", etc.);
+    # force UTF-8 so logging never crashes on it.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     handler = logging.StreamHandler(sys.stdout)
     handler.addFilter(RedactingFilter())
     formatter = logging.Formatter(
