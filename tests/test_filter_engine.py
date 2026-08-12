@@ -76,6 +76,29 @@ class TestOperatorValidationPerDataType:
         c = cond("state", FilterOperator.EQ, "Maharashtra")
         assert c.field == "state"
 
+    def test_data_type_mismatch_against_registry_is_rejected(self, db):
+        """Pydantic's own validator only checks the operator against the
+        *claimed* data_type (STRING allows CONTAINS in general) -- it
+        can't know 'confidence' is actually registered as NUMBER. Without
+        a registry cross-check this used to reach _compile_string() with a
+        numeric column and crash there instead of failing cleanly."""
+        from app.search.filter_registry import InvalidFilterConditionError
+
+        condition = cond("confidence", FilterOperator.CONTAINS, "x", FilterDataType.STRING)
+        with pytest.raises(InvalidFilterConditionError):
+            search_companies_advanced(db, condition)
+
+    def test_operator_outside_fields_own_allowed_set_is_rejected(self, db):
+        """EQ is valid for DATE in general (OPERATORS_BY_DATA_TYPE), so
+        Pydantic alone lets this construct -- but last_verified_at's own
+        FieldSpec.allowed_operators restricts it to ordering/EXISTS
+        operators only, not equality."""
+        from app.search.filter_registry import InvalidFilterConditionError
+
+        condition = cond("last_verified_at", FilterOperator.EQ, "2024-01-01", FilterDataType.DATE)
+        with pytest.raises(InvalidFilterConditionError):
+            search_companies_advanced(db, condition)
+
 
 class TestStringFilters:
     def test_eq_is_case_insensitive(self, db):
@@ -262,6 +285,48 @@ class TestNumericFilters:
         )
         assert unknown.id not in {r.company.id for r in results}
 
+    def test_exists_on_range_backed_field_matches_exact_or_range_value(self, db):
+        exact = _company(employee_count=50, employee_range_min=None, employee_range_max=None)
+        ranged = _company(
+            canonical_name="Ranged Co", normalized_name="ranged co",
+            employee_count=None, employee_range_min=30, employee_range_max=100,
+        )
+        neither = _company(
+            canonical_name="No Data Co", normalized_name="no data co",
+            employee_count=None, employee_range_min=None, employee_range_max=None,
+        )
+        db.add_all([exact, ranged, neither])
+        db.commit()
+
+        results = search_companies_advanced(db, cond("employees", FilterOperator.EXISTS, data_type=FilterDataType.NUMBER))
+        ids = {r.company.id for r in results}
+        assert exact.id in ids and ranged.id in ids
+        assert neither.id not in ids
+        strengths = {r.company.id: r.match_strength for r in results}
+        assert strengths[exact.id] == MatchStrength.DEFINITE
+        assert strengths[ranged.id] == MatchStrength.DEFINITE
+
+    def test_not_exists_on_range_backed_field_matches_only_when_neither_present(self, db):
+        exact = _company(employee_count=50, employee_range_min=None, employee_range_max=None)
+        ranged = _company(
+            canonical_name="Ranged Co", normalized_name="ranged co",
+            employee_count=None, employee_range_min=30, employee_range_max=100,
+        )
+        neither = _company(
+            canonical_name="No Data Co", normalized_name="no data co",
+            employee_count=None, employee_range_min=None, employee_range_max=None,
+        )
+        db.add_all([exact, ranged, neither])
+        db.commit()
+
+        results = search_companies_advanced(
+            db, cond("employees", FilterOperator.NOT_EXISTS, data_type=FilterDataType.NUMBER)
+        )
+        ids = {r.company.id for r in results}
+        assert neither.id in ids
+        assert exact.id not in ids and ranged.id not in ids
+        assert next(r for r in results if r.company.id == neither.id).match_strength == MatchStrength.DEFINITE
+
 
 class TestBooleanComposition:
     def test_and(self, db):
@@ -423,6 +488,42 @@ class TestUnknownHandling:
         ids = {r.company.id for r in results}
         assert definite.id in ids
         assert possible.id not in ids
+
+    def test_definite_only_pagination_does_not_lose_definite_matches_behind_possible_ones(self, db):
+        # All four pass the SQL WHERE (their employee value/range overlaps
+        # >= 20), but the two POSSIBLE-strength ones sort first by
+        # confidence. If SQL applied LIMIT before the DEFINITE-only filter,
+        # a limit=2 page would be built from the two POSSIBLE rows, both of
+        # which then get dropped -- an empty page despite two real DEFINITE
+        # matches existing further down the SQL order.
+        possible_1 = _company(
+            canonical_name="Possible 1", normalized_name="possible 1",
+            employee_count=None, employee_range_min=10, employee_range_max=30, confidence=0.99,
+        )
+        possible_2 = _company(
+            canonical_name="Possible 2", normalized_name="possible 2",
+            employee_count=None, employee_range_min=15, employee_range_max=25, confidence=0.98,
+        )
+        definite_1 = _company(
+            canonical_name="Definite 1", normalized_name="definite 1",
+            employee_count=50, employee_range_min=None, employee_range_max=None, confidence=0.5,
+        )
+        definite_2 = _company(
+            canonical_name="Definite 2", normalized_name="definite 2",
+            employee_count=60, employee_range_min=None, employee_range_max=None, confidence=0.4,
+        )
+        db.add_all([possible_1, possible_2, definite_1, definite_2])
+        db.commit()
+
+        results = search_companies_advanced(
+            db,
+            cond("employees", FilterOperator.GTE, 20, FilterDataType.NUMBER),
+            unknown_handling=UnknownHandling.DEFINITE_ONLY,
+            limit=2,
+            offset=0,
+        )
+        ids = {r.company.id for r in results}
+        assert ids == {definite_1.id, definite_2.id}
 
     def test_unknown_bucket_is_separate_from_main_results(self, db):
         matches = _company(state="Maharashtra", annual_revenue_inr=200_000_000)

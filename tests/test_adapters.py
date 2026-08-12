@@ -111,6 +111,17 @@ class TestGovernmentDatasetAdapter:
         drafts = {d.field: d.normalized_value for d in adapter.normalize(record)}
         assert drafts["incorporation_date"] == "2015-04-12"
 
+    def test_normalize_asserts_india_country_code(self, fetch_result):
+        """MCA Company Master Data is exclusively India-registered companies
+        (CIN is an MCA/India identifier) -- country_code should be asserted
+        unconditionally so country_scope-restricted saved searches don't
+        silently exclude real MCA companies (Company.country_code was never
+        populated by any ingestion path before this)."""
+        adapter = GovernmentDatasetAdapter(source_name="mca_company_master_data")
+        record = adapter.parse(fetch_result)[0]
+        drafts = {d.field: d.normalized_value for d in adapter.normalize(record)}
+        assert drafts["country_code"] == "IN"
+
     def test_parse_skips_rows_without_cin(self):
         content = b"CIN,COMPANY_NAME\n,Missing CIN Co\n"
         fetch_result = FetchResult(

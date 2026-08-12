@@ -139,6 +139,8 @@ class CustomFileAdapter(SourceAdapter):
                     add(field_name, raw, parsed_date.isoformat())
             elif data_type == "boolean":
                 add(field_name, raw, str(raw.strip().lower() in {"true", "yes", "1"}))
+            elif field_name == "country_code":
+                add(field_name, raw, raw.strip().upper())
             elif field_name in ("state", "city", "country", "postal_code", "cin", "gstin"):
                 add(field_name, raw, raw.strip())
             else:

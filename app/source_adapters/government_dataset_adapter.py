@@ -131,6 +131,13 @@ class GovernmentDatasetAdapter(SourceAdapter):
 
         if cin := f.get("cin"):
             add("cin", cin, cin.upper())
+            # MCA (Ministry of Corporate Affairs) Company Master Data is
+            # exclusively India-registered companies (CIN is an MCA/India
+            # identifier) -- safe to assert unconditionally, not derived
+            # from any per-row field. Populates Company.country_code so
+            # country_scope-restricted saved searches (app.search.
+            # advanced_query) don't silently exclude real MCA companies.
+            add("country_code", "IN", "IN")
 
         if name := f.get("company_name"):
             add("legal_name", name, name.strip())

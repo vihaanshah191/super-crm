@@ -34,7 +34,7 @@ from sqlalchemy.sql import ColumnElement
 
 from app.core.logging import get_logger
 from app.models.company import Company
-from app.search.filter_registry import FieldSpec, company_attr, get_field_spec
+from app.search.filter_registry import FieldSpec, company_attr, get_field_spec, validate_condition
 from app.search.filter_types import (
     FilterCondition,
     FilterDataType,
@@ -61,15 +61,21 @@ def compile_where(node: FilterCondition | FilterGroup) -> ColumnElement:
 
 
 def _compile_condition(condition: FilterCondition) -> ColumnElement:
-    spec = get_field_spec(condition.field)
+    spec = validate_condition(condition)
     col = company_attr(spec.attr)
+    op = condition.operator
 
     if spec.range_min_attr and spec.range_max_attr:
-        eff_min = func.coalesce(col, company_attr(spec.range_min_attr))
-        eff_max = func.coalesce(col, company_attr(spec.range_max_attr))
+        range_min_col = company_attr(spec.range_min_attr)
+        range_max_col = company_attr(spec.range_max_attr)
+        if op == FilterOperator.EXISTS:
+            return or_(col.isnot(None), range_min_col.isnot(None))
+        if op == FilterOperator.NOT_EXISTS:
+            return and_(col.is_(None), range_min_col.is_(None))
+        eff_min = func.coalesce(col, range_min_col)
+        eff_max = func.coalesce(col, range_max_col)
         return _compile_numeric(condition, eff_min, eff_max)
 
-    op = condition.operator
     if op == FilterOperator.EXISTS:
         return col.isnot(None)
     if op == FilterOperator.NOT_EXISTS:
@@ -303,6 +309,10 @@ def _leaf_strength(condition: FilterCondition, company: Company) -> _Strength:
             if condition.operator == FilterOperator.EXISTS:
                 return _Strength.NO_MATCH
             return _Strength.UNKNOWN
+        if condition.operator == FilterOperator.EXISTS:
+            return _Strength.DEFINITE
+        if condition.operator == FilterOperator.NOT_EXISTS:
+            return _Strength.NO_MATCH
         return _numeric_strength(condition, eff_min, eff_max, is_exact=value is not None)
 
     if value is None:

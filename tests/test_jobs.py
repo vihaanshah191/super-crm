@@ -11,8 +11,9 @@ from datetime import datetime, timezone
 import pytest
 
 from app.ingestion.jobs.celery_app import celery_app
-from app.ingestion.jobs.tasks import run_source_collection
+from app.ingestion.jobs.tasks import dispatch_enabled_source_collections, run_source_collection
 from app.models.ingestion_job import IngestionJob
+from app.models.source import Source
 from app.source_adapters.base import FetchResult, ObservationDraft, ParsedRecord, SourceAdapter
 
 
@@ -94,6 +95,40 @@ class TestDisabledSourceIsSkipped:
         assert result["status"] == "skipped"
         assert result["reason"] == "collection_disabled"
         assert fake.fetch_calls == 0
+
+
+class TestDispatchExcludesUploadedFileSources:
+    def test_user_uploaded_file_sources_are_never_dispatched(self, db, website_source, monkeypatch):
+        """A user_file source (import_custom_source.py, and import_mca.py's
+        file-import row) has collection_enabled=True to mean 'this
+        collection method is compliance-permitted', not 'Beat should
+        periodically re-fetch it' -- there's no URL for source_target and no
+        durable local file path to re-fetch from on a schedule. Dispatching
+        it used to raise inside run_source_collection (no fetch target)
+        every single day."""
+        uploaded = Source(
+            name="custom_uploaded_source",
+            source_type="user_file",
+            access_method="user_uploaded_file",
+            collection_enabled=True,
+            rate_limit_per_minute=10_000,
+            max_concurrency=1,
+            reliability_weight=30,
+        )
+        db.add(uploaded)
+        db.commit()
+
+        dispatched_args = []
+        monkeypatch.setattr(
+            "app.ingestion.jobs.tasks.run_source_collection.delay",
+            lambda *args: dispatched_args.append(args),
+        )
+
+        result = dispatch_enabled_source_collections()
+
+        assert website_source.name in result["dispatched_sources"]
+        assert uploaded.name not in result["dispatched_sources"]
+        assert all(args[0] != str(uploaded.id) for args in dispatched_args)
 
 
 class TestFailureIsolation:

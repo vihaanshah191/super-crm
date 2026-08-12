@@ -229,6 +229,90 @@ class TestCustomSourceEntityResolution:
         company = db.get(Company, result.company_id)
         assert company.country == "United States"
 
+    def test_country_code_field_projects_onto_company_country_code_column(self, db):
+        """Company.country_code backs country_scope-restricted saved
+        searches (app.search.advanced_query), but before this change no
+        ingestion path -- including a custom source explicitly mapping a
+        country-code column -- ever set it. Mirrors the 'country' test
+        above."""
+        from app.compliance.source_policy import SourcePolicy
+        from app.ingestion.pipeline import ingest_parsed_record
+        from app.models.company import Company
+        from app.models.source import Source
+
+        source = Source(
+            name="custom_country_code_test_source",
+            source_type="user_file",
+            collection_enabled=True,
+            reliability_weight=30,
+        )
+        db.add(source)
+        db.commit()
+
+        mapping = {"Company Name": "legal_name", "ISO": "country_code"}
+        adapter = CustomFileAdapter(source_name=source.name, field_mapping=mapping)
+        fetch_result = _fetch_result("Company Name,ISO\nGlobex Inc,us\n")
+        record = adapter.parse(fetch_result)[0]
+
+        policy = SourcePolicy(
+            source_name=source.name,
+            collection_enabled=source.collection_enabled,
+            rate_limit_per_minute=source.rate_limit_per_minute,
+            max_concurrency=source.max_concurrency,
+        )
+        result = ingest_parsed_record(db, adapter, source, policy, record)
+        company = db.get(Company, result.company_id)
+        assert company.country_code == "US"
+
+    def test_revenue_fields_project_onto_company_columns(self, db):
+        """CANONICAL_FIELD_TYPES lets a custom source map a column to
+        annual_revenue_inr/revenue_range_min_inr/revenue_range_max_inr/
+        revenue_year (used in the CLI examples/docs), but
+        _apply_field_to_company() had no case for any of them -- the values
+        were recorded as Evidence but silently never applied to the
+        canonical row, making them invisible to search/sort. Mirrors
+        test_country_field_projects_onto_company_country_column above."""
+        from app.compliance.source_policy import SourcePolicy
+        from app.ingestion.pipeline import ingest_parsed_record
+        from app.models.company import Company
+        from app.models.source import Source
+
+        source = Source(
+            name="custom_revenue_test_source",
+            source_type="user_file",
+            collection_enabled=True,
+            reliability_weight=30,
+        )
+        db.add(source)
+        db.commit()
+
+        mapping = {
+            "Company Name": "legal_name",
+            "Turnover": "annual_revenue_inr",
+            "Turnover Min": "revenue_range_min_inr",
+            "Turnover Max": "revenue_range_max_inr",
+            "Turnover Year": "revenue_year",
+        }
+        adapter = CustomFileAdapter(source_name=source.name, field_mapping=mapping)
+        fetch_result = _fetch_result(
+            "Company Name,Turnover,Turnover Min,Turnover Max,Turnover Year\n"
+            "Acme Widgets Pvt Ltd,150000000,100000000,200000000,2024\n"
+        )
+        record = adapter.parse(fetch_result)[0]
+
+        policy = SourcePolicy(
+            source_name=source.name,
+            collection_enabled=source.collection_enabled,
+            rate_limit_per_minute=source.rate_limit_per_minute,
+            max_concurrency=source.max_concurrency,
+        )
+        result = ingest_parsed_record(db, adapter, source, policy, record)
+        company = db.get(Company, result.company_id)
+        assert company.annual_revenue_inr == 150000000
+        assert company.revenue_range_min_inr == 100000000
+        assert company.revenue_range_max_inr == 200000000
+        assert company.revenue_year == 2024
+
     def test_matches_existing_company_by_cin_across_sources(self, db, mca_source):
         """A company already known via MCA (VERIFIED, high confidence) should
         resolve to the SAME Company row when the same CIN later shows up in

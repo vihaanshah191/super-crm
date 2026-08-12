@@ -23,7 +23,7 @@ from app.api.schemas import (
 from app.db.base import get_db
 from app.models.saved_search import SavedSearch
 from app.search.advanced_query import find_unknown_bucket, search_companies_advanced
-from app.search.filter_registry import UnknownFilterFieldError
+from app.search.filter_registry import InvalidFilterConditionError, UnknownFilterFieldError
 from app.search.filter_types import FilterNode, SortSpec, UnknownHandling
 
 router = APIRouter(prefix="/api/saved-searches", tags=["saved-searches"])
@@ -126,7 +126,7 @@ def execute_saved_search(
             limit=body.limit,
             offset=body.offset,
         )
-    except UnknownFilterFieldError as exc:
+    except (UnknownFilterFieldError, InvalidFilterConditionError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     results = [
@@ -136,14 +136,17 @@ def execute_saved_search(
 
     unknown_results: list[CompanyOut] = []
     if body.unknown_handling == UnknownHandling.INCLUDE_UNKNOWN_SEPARATELY:
-        unknown_companies = find_unknown_bucket(
-            db,
-            filter_node,
-            country_scope=saved_search.country_scope or None,
-            source_scope=saved_search.source_scope or None,
-            limit=body.limit,
-            offset=body.offset,
-        )
+        try:
+            unknown_companies = find_unknown_bucket(
+                db,
+                filter_node,
+                country_scope=saved_search.country_scope or None,
+                source_scope=saved_search.source_scope or None,
+                limit=body.limit,
+                offset=body.offset,
+            )
+        except (UnknownFilterFieldError, InvalidFilterConditionError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         unknown_results = [CompanyOut.model_validate(c) for c in unknown_companies]
 
     return AdvancedSearchResponse(total_returned=len(results), results=results, unknown_results=unknown_results)

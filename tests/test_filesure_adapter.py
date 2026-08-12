@@ -204,6 +204,17 @@ class TestNormalize:
         assert drafts["company_status"].normalized_value == "active"
         assert drafts["incorporation_date"].normalized_value == "2013-12-09"  # DD/MM/YYYY -> ISO
 
+    def test_normalize_asserts_india_country_code(self, fetch_result):
+        """FileSure resells India's MCA registry (CIN is an MCA/India
+        identifier) -- country_code should be asserted unconditionally so
+        country_scope-restricted saved searches don't silently exclude real
+        Indian companies collected via FileSure."""
+        adapter = FileSureAdapter(source_name="filesure")
+        record = adapter.parse(fetch_result)[0]
+        drafts = {d.field: d for d in adapter.normalize(record)}
+        assert drafts["country_code"].normalized_value == "IN"
+        assert drafts["country_code"].verification_type == "verified"
+
     def test_capital_fields_are_never_labeled_revenue(self, fetch_result):
         """The task's central financial-data requirement: authorized/paid-up
         capital must never be mapped to a revenue field."""
