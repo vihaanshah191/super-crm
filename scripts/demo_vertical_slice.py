@@ -88,6 +88,7 @@ def main() -> None:
     website_source = Source(
         name="example_company_website",
         source_type="website",
+        countries=["IN"],
         collection_enabled=True,
         rate_limit_per_minute=10,
         max_concurrency=1,
@@ -97,6 +98,7 @@ def main() -> None:
     mca_source = Source(
         name="mca_company_master_data",
         source_type="government_dataset",
+        countries=["IN"],
         collection_enabled=True,
         rate_limit_per_minute=30,
         max_concurrency=2,

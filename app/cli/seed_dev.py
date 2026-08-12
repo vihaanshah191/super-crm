@@ -206,6 +206,7 @@ def _seed_company(db, source: Source, spec: tuple, index: int) -> Company:
         city=city,
         state=state,
         country="India",
+        country_code="IN",
         postal_code=postal_code,
         industry=industry,
         company_category=category,
