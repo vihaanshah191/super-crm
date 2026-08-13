@@ -42,6 +42,7 @@ CANONICAL_FIELD_TYPES: dict[str, str] = {
     "company_type": "string",
     "company_category": "string",
     "products": "string",  # comma-separated list, e.g. "Widgets, Fasteners"
+    "services": "string",  # comma-separated list, same convention as products
     "incorporation_date": "date",
     "employee_count": "number",
     "employee_range_min": "number",

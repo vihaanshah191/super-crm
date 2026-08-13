@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { ApiError, getCompany, getCompanyFinancials, getCompanyGstRegistrations } from "@/lib/api";
 import { formatDate, formatEmployeeRange, formatInr } from "@/lib/format";
 import { ConfidenceBadge, VerificationBadge } from "@/components/confidence-badge";
+import { SourceBadges } from "@/components/source-badges";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -58,11 +59,54 @@ export default async function CompanyProfilePage({ params }: { params: Promise<{
           label="Employees"
           value={formatEmployeeRange(company.employee_count, company.employee_range_min, company.employee_range_max)}
         />
-        <SummaryStat label="Revenue (latest)" value={formatInr(company.annual_revenue_inr)} />
+        <SummaryStat
+          label="Revenue (latest)"
+          value={
+            company.revenue_year
+              ? `${formatInr(company.annual_revenue_inr)} (FY${company.revenue_year})`
+              : formatInr(company.annual_revenue_inr)
+          }
+        />
         <SummaryStat label="Incorporated" value={formatDate(company.incorporation_date)} />
       </div>
 
       <ContactCard phone={company.public_phone} email={company.public_email} website={company.website} />
+
+      {(company.products?.length || company.services?.length) ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Products &amp; services</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <p className="text-xs text-muted-foreground">Products</p>
+                {company.products?.length ? (
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {company.products.map((p) => (
+                      <Badge key={p} variant="outline">{p}</Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Not available</p>
+                )}
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Services</p>
+                {company.services?.length ? (
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {company.services.map((s) => (
+                      <Badge key={s} variant="outline">{s}</Badge>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Not available</p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Tabs defaultValue="evidence">
         <TabsList>
@@ -87,6 +131,7 @@ export default async function CompanyProfilePage({ params }: { params: Promise<{
                     <TableRow>
                       <TableHead>Field</TableHead>
                       <TableHead>Value</TableHead>
+                      <TableHead>Source</TableHead>
                       <TableHead>Verification</TableHead>
                       <TableHead>Confidence</TableHead>
                       <TableHead>Computed</TableHead>
@@ -97,6 +142,9 @@ export default async function CompanyProfilePage({ params }: { params: Promise<{
                       <TableRow key={e.field}>
                         <TableCell className="font-mono text-xs">{e.field}</TableCell>
                         <TableCell className="max-w-xs truncate">{e.value ?? "—"}</TableCell>
+                        <TableCell>
+                          <SourceBadges sources={e.sources} />
+                        </TableCell>
                         <TableCell>
                           <VerificationBadge verificationType={e.verification_type} />
                         </TableCell>

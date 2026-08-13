@@ -15,6 +15,7 @@ export interface EvidenceOut {
   verification_type: string;
   explanation: Record<string, unknown>;
   computed_at: string;
+  sources: string[];
 }
 
 export interface CompanyOut {
@@ -37,6 +38,7 @@ export interface CompanyOut {
   industry: string | null;
   sub_industry: string | null;
   products: string[] | null;
+  services: string[] | null;
   company_category: string | null;
   export_status: boolean | null;
 
@@ -62,6 +64,7 @@ export interface CompanyDetailOut extends CompanyOut {
 
 export interface CompanySearchResultOut extends CompanyOut {
   match_is_definite: boolean | null;
+  sources: string[];
 }
 
 export interface CompanySearchResponse {
@@ -208,6 +211,8 @@ export type UnknownHandling = "definite_only" | "definite_and_possible" | "inclu
 export interface AdvancedSearchRequest {
   filter: FilterNode;
   unknown_handling?: UnknownHandling;
+  country_scope?: string[];
+  source_scope?: string[];
   limit?: number;
   offset?: number;
 }
@@ -215,6 +220,7 @@ export interface AdvancedSearchRequest {
 export interface AdvancedSearchResultOut {
   company: CompanyOut;
   match_strength: MatchStrength;
+  sources: string[];
 }
 
 export interface AdvancedSearchResponse {

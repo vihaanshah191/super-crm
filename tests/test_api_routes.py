@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.models.company import Company
+from app.models.evidence import Evidence, EvidenceObservation
 from app.models.financials import CompanyFinancials
 from app.models.gst_registration import CompanyGSTRegistration
 from app.models.ingestion_job import IngestionJob
@@ -65,6 +66,44 @@ class TestCompanyGSTRegistrationsEndpoint:
         rows = response.json()
         assert len(rows) == 2
         assert rows[0]["is_primary"] is True
+
+
+class TestCompanyDetailEndpoint:
+    def test_evidence_rows_list_the_source_names_backing_them(self, db):
+        """Each Evidence rollup should say which Source(s) actually
+        contributed the observations behind it -- not just a confidence
+        number with no way to trace it back to where the data came from."""
+        source = Source(name="evidence_source_test", source_type="government_dataset", collection_enabled=True)
+        db.add(source)
+        db.flush()
+
+        company = _company()
+        db.add(company)
+        db.flush()
+
+        obs = RawObservation(
+            company_id=company.id, source_id=source.id, source_type="government_dataset",
+            field="employee_count", raw_value="42", normalized_value="42",
+            collected_at=datetime.now(timezone.utc), confidence=0.9, verification_type="verified",
+            collector_version="test/1.0",
+        )
+        db.add(obs)
+        db.flush()
+
+        evidence = Evidence(
+            company_id=company.id, field="employee_count", value="42", numeric_value=42,
+            confidence=0.9, verification_type="verified", computed_at=datetime.now(timezone.utc),
+        )
+        db.add(evidence)
+        db.flush()
+        db.add(EvidenceObservation(evidence_id=evidence.id, observation_id=obs.id))
+        db.commit()
+
+        response = client.get(f"/api/companies/{company.id}")
+        assert response.status_code == 200
+        body = response.json()
+        row = next(e for e in body["evidence"] if e["field"] == "employee_count")
+        assert row["sources"] == [source.name]
 
 
 class TestIngestionEndpoints:
