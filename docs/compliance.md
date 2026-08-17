@@ -42,10 +42,13 @@ blocked in two independent places, not just one.
 |---|---|---|---|
 | MCA Company Master Data (via data.gov.in) | `government_dataset` | **IMPLEMENTED / DISABLED PENDING CREDENTIALS** -- adapter implemented and tested against fixtures; live API connectivity, live schema, and production ingestion are all separate, not-yet-done milestones. See `docs/mca_data_access.md`. Do not describe this as "verified live." | Prefer-official-downloads-over-scraping requirement is directly satisfied; access is gated on `DATA_GOV_IN_API_KEY`, which stays empty |
 | MCA Company Master Data (local file import) | `government_dataset` | Adapter implemented; `python -m app.cli.import_mca` ingests an officially-obtained file through the same pipeline, no API key needed. Requires an explicit `--source-url`; observations are tagged `file_import_user_declared`, never claimed as independently verified. | Lets real, officially-obtained MCA data be ingested without waiting on API credentials |
+| UK Companies House | `government_dataset` (single-company lookup, name-disambiguated in `_adapter_for()`) | **IMPLEMENTED / DISABLED PENDING CREDENTIALS** -- adapter implemented and tested against mocked responses built from the confirmed live API reference; no live API key was available to exercise `fetch()` end-to-end. See `docs/companies_house_data_access.md`. | Official UK government company registry; free (600 req/5min); commercial-use terms not pinned to one exact quote, worth confirming before production scale |
+| SEC EDGAR | `public_filing` | **IMPLEMENTED / VERIFIED LIVE** (schema confirmed against a real response, no key required) -- covers **public/SEC-registered US companies only**, not the US private-company universe. See `docs/sec_edgar_data_access.md`. | Official US government filing data, free, no auth beyond a compliant User-Agent |
 | Example company website | `website` | Adapter implemented, **fixture-only** (`tests/fixtures/html/example_company_website.html`, a `.example` RFC 2606 domain) | No real company website has been reviewed for robots.txt/ToS permission yet -- see below |
 
-Neither source's demo/test `Source` row is pointed at a real live network
-target from this codebase. The website adapter is exercised entirely against
+None of these sources' demo/test/CLI-bootstrapped `Source` rows are pointed
+at a real live network target from automated tests in this codebase. The
+website adapter is exercised entirely against
 a synthetic fixture we authored ourselves, specifically so this PoC does not
 imply collection from, or dependency on, any real site whose terms have not
 been reviewed.

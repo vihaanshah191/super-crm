@@ -31,9 +31,23 @@ def _adapter_for(source: Source) -> SourceAdapter:
 
         return WebsiteAdapter(source_name=source.name)
     if source.source_type == "government_dataset":
+        # Companies House is also an official government registry (hence
+        # the same source_type as MCA), but it's a live single-company
+        # lookup API, not a bulk CSV/JSON dataset -- source_type alone
+        # can't distinguish it from GovernmentDatasetAdapter, so this one
+        # case is disambiguated by name. See app/cli/companies_house_lookup.py,
+        # which is the only place this Source row gets created.
+        if source.name == "companies_house":
+            from app.source_adapters.companies_house_adapter import CompaniesHouseAdapter
+
+            return CompaniesHouseAdapter(source_name=source.name)
         from app.source_adapters.government_dataset_adapter import GovernmentDatasetAdapter
 
         return GovernmentDatasetAdapter(source_name=source.name)
+    if source.source_type == "public_filing":
+        from app.source_adapters.sec_edgar_adapter import SecEdgarAdapter
+
+        return SecEdgarAdapter(source_name=source.name)
     if source.source_type == "registry_data_provider":
         from app.source_adapters.filesure_adapter import FileSureAdapter
 

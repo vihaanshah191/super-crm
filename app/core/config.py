@@ -50,6 +50,26 @@ class Settings(BaseSettings):
     filesure_collection_enabled: bool = False
     filesure_base_url: str = "https://api.filesure.in/v1"
 
+    # UK Companies House (official company registry, api.company-information.service.gov.uk)
+    # -- see docs/companies_house_data_access.md. HTTP Basic Auth, API key as
+    # username, blank password -- confirmed against the live developer docs
+    # (developer.company-information.service.gov.uk/authentication). Free to
+    # register. collection_enabled mirrors FileSure's two-independent-gates
+    # pattern (docs/compliance.md) even though this source is free, for
+    # architectural consistency and so it can be killed without a DB change.
+    companies_house_api_key: str = ""
+    companies_house_collection_enabled: bool = False
+    companies_house_base_url: str = "https://api.company-information.service.gov.uk"
+
+    # SEC EDGAR (official US public-company filings, data.sec.gov) -- see
+    # docs/sec_edgar_data_access.md. No API key at all, but SEC's fair-access
+    # policy (sec.gov/os/webmaster-faq) REQUIRES a compliant User-Agent
+    # header identifying the requester ("Company Name contact@domain.com")
+    # or requests are rejected as an "Undeclared Automated Tool" -- this is
+    # config, not a secret, but still required before any request is made.
+    sec_edgar_user_agent: str = ""
+    sec_edgar_base_url: str = "https://data.sec.gov"
+
     log_level: str = "INFO"
 
     # Origins allowed to call the API cross-origin -- the Next.js frontend

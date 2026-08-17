@@ -84,3 +84,54 @@ class TestComputeAllSourceHealth:
         names = {h.source.name for h in results}
         assert mca_source.name in names
         assert filesure_source.name in names
+
+
+class TestNewSourceHealthNoSpecialCasing:
+    """Companies House and SEC EDGAR must be plain rows in the same
+    IngestionJob-derived projection as every other source -- no adapter- or
+    country-specific branching in source_health.py."""
+
+    def test_companies_house_source_with_no_jobs_has_no_last_run(self, db, companies_house_source):
+        health = compute_source_health(db, companies_house_source)
+        assert health.last_successful_run is None
+        assert health.records_collected_total == 0
+        assert health.source.countries == ["GB"]
+        assert health.source.source_type == "government_dataset"
+
+    def test_companies_house_source_health_reflects_job_history(self, db, companies_house_source):
+        db.add(_job(companies_house_source.id, idempotency_key="a", status="success", records_updated=4))
+        db.commit()
+
+        health = compute_source_health(db, companies_house_source)
+        assert health.records_collected_total == 4
+        assert health.last_run_status == "success"
+
+    def test_sec_edgar_source_with_no_jobs_has_no_last_run(self, db, sec_edgar_source):
+        health = compute_source_health(db, sec_edgar_source)
+        assert health.last_successful_run is None
+        assert health.records_collected_total == 0
+        assert health.source.countries == ["US"]
+        assert health.source.source_type == "public_filing"
+
+    def test_sec_edgar_source_health_reflects_a_failure(self, db, sec_edgar_source):
+        db.add(
+            _job(
+                sec_edgar_source.id,
+                idempotency_key="fail",
+                status="failed",
+                error_summary="rate limited",
+                records_updated=0,
+            )
+        )
+        db.commit()
+
+        health = compute_source_health(db, sec_edgar_source)
+        assert health.last_error == "rate limited"
+        assert health.last_successful_run is None
+
+    def test_all_source_health_includes_both_new_sources_alongside_existing_ones(
+        self, db, mca_source, filesure_source, companies_house_source, sec_edgar_source
+    ):
+        results = compute_all_source_health(db)
+        names = {h.source.name for h in results}
+        assert {mca_source.name, filesure_source.name, companies_house_source.name, sec_edgar_source.name} <= names

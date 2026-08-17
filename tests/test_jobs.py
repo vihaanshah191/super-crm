@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 import pytest
 
 from app.ingestion.jobs.celery_app import celery_app
-from app.ingestion.jobs.tasks import dispatch_enabled_source_collections, run_source_collection
+from app.ingestion.jobs.tasks import _adapter_for, dispatch_enabled_source_collections, run_source_collection
 from app.models.ingestion_job import IngestionJob
 from app.models.source import Source
 from app.source_adapters.base import FetchResult, ObservationDraft, ParsedRecord, SourceAdapter
@@ -129,6 +129,30 @@ class TestDispatchExcludesUploadedFileSources:
         assert website_source.name in result["dispatched_sources"]
         assert uploaded.name not in result["dispatched_sources"]
         assert all(args[0] != str(uploaded.id) for args in dispatched_args)
+
+
+class TestAdapterForDispatch:
+    """Covers a real dispatch collision found and fixed while adding
+    CompaniesHouseAdapter: it shares source_type="government_dataset" with
+    the pre-existing GovernmentDatasetAdapter (MCA), so _adapter_for() must
+    disambiguate by source.name, not source_type alone."""
+
+    def test_government_dataset_source_named_companies_house_dispatches_to_companies_house_adapter(
+        self, companies_house_source
+    ):
+        from app.source_adapters.companies_house_adapter import CompaniesHouseAdapter
+
+        assert isinstance(_adapter_for(companies_house_source), CompaniesHouseAdapter)
+
+    def test_government_dataset_source_with_other_name_dispatches_to_government_dataset_adapter(self, mca_source):
+        from app.source_adapters.government_dataset_adapter import GovernmentDatasetAdapter
+
+        assert isinstance(_adapter_for(mca_source), GovernmentDatasetAdapter)
+
+    def test_public_filing_source_dispatches_to_sec_edgar_adapter(self, sec_edgar_source):
+        from app.source_adapters.sec_edgar_adapter import SecEdgarAdapter
+
+        assert isinstance(_adapter_for(sec_edgar_source), SecEdgarAdapter)
 
 
 class TestFailureIsolation:

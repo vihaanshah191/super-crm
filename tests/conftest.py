@@ -105,3 +105,43 @@ def filesure_source(db):
     db.add(source)
     db.commit()
     return source
+
+
+@pytest.fixture()
+def companies_house_source(db):
+    # name="companies_house" matters -- _adapter_for() in
+    # app/ingestion/jobs/tasks.py disambiguates CompaniesHouseAdapter from
+    # GovernmentDatasetAdapter (both source_type="government_dataset") by
+    # this exact source name.
+    source = Source(
+        name="companies_house",
+        source_type="government_dataset",
+        countries=["GB"],
+        access_method="official_api",
+        collection_enabled=True,
+        rate_limit_per_minute=120,
+        max_concurrency=1,
+        reliability_weight=95,
+        license_notes="UK Companies House API -- test fixture Source row.",
+    )
+    db.add(source)
+    db.commit()
+    return source
+
+
+@pytest.fixture()
+def sec_edgar_source(db):
+    source = Source(
+        name="sec_edgar",
+        source_type="public_filing",
+        countries=["US"],
+        access_method="official_api",
+        collection_enabled=True,
+        rate_limit_per_minute=300,
+        max_concurrency=1,
+        reliability_weight=95,
+        license_notes="SEC EDGAR (data.sec.gov) -- test fixture Source row.",
+    )
+    db.add(source)
+    db.commit()
+    return source
